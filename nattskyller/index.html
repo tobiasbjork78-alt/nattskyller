@@ -246,12 +246,13 @@
         <button class="off-edit" id="offedit" type="button">Ändra</button>
       </div>
       <div class="off-setup">
-        <p>Vilken dag går du av? (dagen efter sista natten)</p>
+        <p>Eget datum för avmönstring (dagen efter sista natten)</p>
         <div class="off-row">
           <input type="date" id="offdate" aria-label="Datum för avmönstring">
           <input type="time" id="offtime" value="10:30" aria-label="Klockslag">
           <button id="offsave" type="button">Spara</button>
         </div>
+        <button class="off-edit" id="offcal" type="button" style="padding:10px 0 0">Följ kalendern i stället</button>
       </div>
       <div class="off-main">
         <div class="off-big"><span class="off-num" id="offnum">—</span><span class="off-unit" id="offunit">timmar kvar</span></div>
@@ -476,8 +477,28 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) updateB
 // Nedräkning till avmönstring
 const OFFKEY = "natskyll:off";
 const offEl = document.getElementById("off");
+// Ombord-perioder ur kalendern "Ombord" [påmönstring, avmönstring]. Avmönstring räknas kl 10:30.
+const OFF_TIME = "10:30";
+const PERIODS = [
+  ["2026-11-10","2026-11-24"],["2026-12-08","2026-12-22"],["2026-12-30","2027-01-05"],
+  ["2027-01-13","2027-01-19"],["2027-02-02","2027-02-16"],["2027-03-02","2027-03-16"],
+  ["2027-03-30","2027-04-13"],["2027-04-27","2027-05-11"],["2027-05-25","2027-06-08"],
+  ["2027-06-22","2027-07-06"],["2027-07-20","2027-08-03"],["2027-08-17","2027-08-31"],
+  ["2027-09-14","2027-09-28"],["2027-10-12","2027-10-26"],["2027-11-09","2027-11-23"],
+  ["2027-12-07","2027-12-21"]
+];
+const OFF_KEEP = 36*3600*1000; // visa "FRI" så här länge efter avmönstring
+function calOff(){
+  const t = Date.now();
+  for (const [a,b] of PERIODS){
+    const target = b+"T"+OFF_TIME+":00";
+    if (new Date(target).getTime() + OFF_KEEP > t) return { target, setAt: new Date(a+"T10:00:00").getTime(), cal:true };
+  }
+  return null;
+}
 let off = null;
 try { off = JSON.parse(store.get(OFFKEY) || "null"); } catch(e){ off = null; }
+if (!off || !off.manual) off = calOff();
 const OFF_STAGES = [
   // [timmar kvar under, nivå, land, text]
   [1,   7, "🍻", "🍾 Minuter kvar. Släpp trasan. Snart."],
@@ -516,13 +537,14 @@ function renderOff(){
   document.getElementById("offedit").style.display="";
   if (offEl.classList.contains("setup") && offEl.dataset.editing) return;
   const target = new Date(off.target), t = new Date(), ms = target - t;
+  document.getElementById("offlabel").textContent = "Avmönstring · " + (off.cal ? "enligt kalendern" : "eget datum");
   const num = document.getElementById("offnum"), unit = document.getElementById("offunit"),
         sub = document.getElementById("offsub"), msg = document.getElementById("offmsg"),
         ship = document.getElementById("offship"), land = document.getElementById("offland");
   const when = target.toLocaleDateString("sv-SE",{weekday:"long",day:"numeric",month:"long"})+" kl "+
                String(target.getHours()).padStart(2,"0")+":"+String(target.getMinutes()).padStart(2,"0");
   if (ms <= 0){
-    if (ms < -36*3600*1000){ off = null; store.set(OFFKEY,"null"); renderOff(); return; }
+    if (ms < -OFF_KEEP){ store.set(OFFKEY,"null"); off = calOff(); if (off && new Date(off.target) - t <= -OFF_KEEP) off = null; renderOff(); return; }
     offEl.className = "off fri";
     num.textContent = "FRI"; unit.textContent = "avmönstrad!";
     sub.textContent = "Sedan "+when;
@@ -567,8 +589,12 @@ document.getElementById("offsave").addEventListener("click", () => {
   const d = document.getElementById("offdate").value, tm = document.getElementById("offtime").value || "10:30";
   if (!d){ document.getElementById("offdate").focus(); return; }
   const keep = off && off.target && off.target.slice(0,10) === d && off.setAt;
-  off = { target: d+"T"+tm+":00", setAt: keep ? off.setAt : Date.now() };
+  off = { target: d+"T"+tm+":00", setAt: keep ? off.setAt : Date.now(), manual:true };
   store.set(OFFKEY, JSON.stringify(off));
+  delete offEl.dataset.editing; offParty = false; renderOff();
+});
+document.getElementById("offcal").addEventListener("click", () => {
+  store.set(OFFKEY,"null"); off = calOff();
   delete offEl.dataset.editing; offParty = false; renderOff();
 });
 renderOff();
