@@ -418,24 +418,24 @@ function loadJson(key, fallback){
 
 const WEEKDAYS = ["Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag","Söndag"];
 
-// Djupstäd per veckodag. "rooms" delas upp i ett moment per kök, så att varje kök får en egen tid.
+// Djupstäd per veckodag, exakt enligt arbetsschemat. Ändra inte texterna här utan Tobbes besked.
 // "k" sätts när samma jobb återkommer flera dagar och ska dela statistik.
 const DEEP = [
-  [ {id:"mo1", t:"Fläktkåpor", rooms:["KULL","BESÄTTNING","SYD","NORD"], n:"Endast invändigt"},
+  [ {id:"mo1", t:"Fläktkåpor – KULL · BESÄTTNING · SYD · NORD", n:"Endast invändigt"},
     {id:"mo2", t:"Avlopp & galler i à la carte-köket", n:"Extra grundligt"} ],
   [ {id:"tu1", t:"Barnbuffé – skåp & väggar i SKAGERAK"},
-    {id:"tu2", t:"Tak", rooms:["KULL","BESÄTTNING","SKAGERAK"]} ],
-  [ {id:"we1", t:"Tak", rooms:["SYD","NORD"]},
-    {id:"we2", t:"Avlopp & galler", rooms:["SYD","NORD"], n:"Extra grundligt"},
-    {id:"we3", k:"nattmat", t:"Nattmat för hela båten", n:"Kör ner värmeskåpen från mässen till köket"} ],
+    {id:"tu2", t:"Tak – KULL · BESÄTTNING · SKAGERAK"} ],
+  [ {id:"we1", t:"Tak – SYD · NORD"},
+    {id:"we2", t:"Avlopp & galler – SYD · NORD", n:"Extra grundligt"},
+    {id:"we3", k:"nattmat", t:"Nattmat i mässen"} ],
   [ {id:"th1", t:"Avlopp & galler i SKAGERAK-köket", n:"Extra grundligt"} ],
   [ {id:"fr1", t:"Alla kyl- & värmeskåp i SKAGERAK-buffén"},
     {id:"fr2", t:"Ångrengöraren ända in i kanterna", n:"Glöm inte hörnen"} ],
   [ {id:"sa1", t:"Hiss"},
     {id:"sa2", t:"Spillbrickor från utsuget – runda i taket, KULL"},
-    {id:"sa3", k:"nattmat", t:"Nattmat för hela båten", n:"Kör ner värmeskåpen från mässen till köket"} ],
+    {id:"sa3", k:"nattmat", t:"Nattmat i mässen"} ],
   [ {id:"su1", t:"Filter & fläktkåpor – SKAGERAK", n:"Invändigt, utvändigt & kanter"},
-    {id:"su2", t:"Fläktkåpor", rooms:["KULL","BESÄTTNING","SYD","NORD"], n:"Endast utvändigt & kanter"} ]
+    {id:"su2", t:"Fläktkåpor – KULL · BESÄTTNING · SYD · NORD", n:"Endast utvändigt & kanter"} ]
 ];
 
 function slug(s){ return String(s).toLowerCase().trim().replace(/[^a-z0-9åäö]+/g,"-").replace(/^-|-$/g,""); }
