@@ -434,7 +434,8 @@ function loadJson(key, fallback){
 const WEEKDAYS = ["Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag","Söndag"];
 
 // Djupstäd per veckodag enligt arbetsschemat, med Tobbes namn på köken (2026-11-11):
-// SYD = PIZZAN, NORD = KULL, à la carte = KULL. Tak i BESÄTTNING är struket. Ändra inget här utan hans besked.
+// SYD = PIZZAN, NORD = KULL, à la carte = KULL. Tak i BESÄTTNING är struket. Avlopp & galler i KULL görs bara måndagar.
+// Ändra inget här utan hans besked.
 // "k" sätts när samma jobb återkommer flera dagar och ska dela statistik.
 // "floor" = ingår i golvet i de köken den natten och mäts där, inte som egen rad.
 const DEEP = [
@@ -443,7 +444,7 @@ const DEEP = [
   [ {id:"tu1", t:"Barnbuffé – skåp & väggar i SKAGERAK"},
     {id:"tu2", t:"Tak – KULL · SKAGERAK"} ],
   [ {id:"we1", t:"Tak – PIZZAN · KULL"},
-    {id:"we2", t:"Avlopp & galler – PIZZAN · KULL", n:"Extra grundligt", floor:["PIZZAN","KULL"]},
+    {id:"we2", t:"Avlopp & galler – PIZZAN", n:"Extra grundligt", floor:["PIZZAN"]},
     {id:"we3", k:"nattmat", t:"Nattmat i mässen"} ],
   [ {id:"th1", t:"Avlopp & galler – SKAGERAK", n:"Extra grundligt", floor:["SKAGERAK"]} ],
   [ {id:"fr1", t:"Alla kyl- & värmeskåp i SKAGERAK-buffén"},
