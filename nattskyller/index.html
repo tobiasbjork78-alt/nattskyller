@@ -421,15 +421,16 @@ const WEEKDAYS = ["Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag","Sön
 // Djupstäd per veckodag enligt arbetsschemat, med Tobbes namn på köken (2026-11-11):
 // SYD = PIZZAN, NORD = KULL, à la carte = KULL. Tak i BESÄTTNING är struket. Ändra inget här utan hans besked.
 // "k" sätts när samma jobb återkommer flera dagar och ska dela statistik.
+// "floor" = ingår i golvet i de köken den natten och mäts där, inte som egen rad.
 const DEEP = [
   [ {id:"mo1", t:"Fläktkåpor – KULL · BESÄTTNING · PIZZAN", n:"Endast invändigt"},
-    {id:"mo2", t:"Avlopp & galler – KULL", n:"Extra grundligt"} ],
+    {id:"mo2", t:"Avlopp & galler – KULL", n:"Extra grundligt", floor:["KULL"]} ],
   [ {id:"tu1", t:"Barnbuffé – skåp & väggar i SKAGERAK"},
     {id:"tu2", t:"Tak – KULL · SKAGERAK"} ],
   [ {id:"we1", t:"Tak – PIZZAN · KULL"},
-    {id:"we2", t:"Avlopp & galler – PIZZAN · KULL", n:"Extra grundligt"},
+    {id:"we2", t:"Avlopp & galler – PIZZAN · KULL", n:"Extra grundligt", floor:["PIZZAN","KULL"]},
     {id:"we3", k:"nattmat", t:"Nattmat i mässen"} ],
-  [ {id:"th1", t:"Avlopp & galler – SKAGERAK", n:"Extra grundligt"} ],
+  [ {id:"th1", t:"Avlopp & galler – SKAGERAK", n:"Extra grundligt", floor:["SKAGERAK"]} ],
   [ {id:"fr1", t:"Alla kyl- & värmeskåp i SKAGERAK-buffén"},
     {id:"fr2", t:"Ångrengöraren ända in i kanterna", n:"Glöm inte hörnen"} ],
   [ {id:"sa1", t:"Hiss"},
@@ -445,7 +446,7 @@ function slug(s){ return String(s).toLowerCase().trim().replace(/[^a-z0-9åäö]
 // så flera mätningar samma natt läggs ihop (snitt räknas per natt).
 const KITCHENS = ["SKAGERAK","KULL","PIZZAN"];
 const NIGHT = [
-  { h:"Golv – sopa, skura, skölja, raka", items: KITCHENS.map(r => ({ k:"golv:"+slug(r), t:"Golv – "+r })) },
+  { h:"Golv – sopa, skura, skölja, raka", items: KITCHENS.map(r => ({ k:"golv:"+slug(r), t:"Golv – "+r, room:r })) },
   { h:"Övrigt varje natt", items: [
     {k:"n2", t:"Stänga mässen"},
     {k:"n3", t:"Fyll på i kabyssen"},
@@ -459,7 +460,7 @@ function dayItems(i){
   const out = [];
   DEEP[i].forEach(it => {
     if (it.rooms) it.rooms.forEach(r => out.push({ k:(it.k||it.id)+":"+slug(r), t:it.t+" – "+r, n:it.n }));
-    else out.push({ k:it.k||it.id, t:it.t, n:it.n });
+    else out.push({ k:it.k||it.id, t:it.t, n:it.n, floor:it.floor });
   });
   return out;
 }
@@ -597,6 +598,11 @@ function taskRow(item){
   const lab = el("span","label");
   lab.appendChild(document.createTextNode(item.t));
   if (item.n) lab.appendChild(el("span","note",item.n));
+  if (item.floor){
+    lab.appendChild(el("span","tstat","Ingår i golvet i natt – mäts på Golv-raden"));
+    top.appendChild(lab); li.appendChild(top);
+    return li;
+  }
   lab.appendChild(statLine(item.k));
   const ctl = el("div","tctl");
   if (!r){
@@ -627,10 +633,12 @@ function adhocItems(){
 function renderToday(){
   const deep = document.getElementById("deeplist"); deep.innerHTML = "";
   dayItems(wd).forEach(it => deep.appendChild(taskRow(it)));
+  const floorRooms = dayItems(wd).reduce((a,it) => a.concat(it.floor || []), []);
   const nw = document.getElementById("nightwrap"); nw.innerHTML = "";
   NIGHT.forEach(g => {
     const sec = el("section","sec"), grp = el("div","group"), ul = el("ul","tasks");
-    g.items.forEach(it => ul.appendChild(taskRow(it)));
+    g.items.forEach(it => ul.appendChild(taskRow(
+      it.room && floorRooms.indexOf(it.room) >= 0 ? Object.assign({}, it, { n:"I natt med avlopp & galler – extra grundligt" }) : it)));
     grp.appendChild(ul); sec.append(el("div","sec-h",g.h), grp); nw.appendChild(sec);
   });
   const ad = adhocItems(), adl = document.getElementById("adhoclist"); adl.innerHTML = "";
@@ -653,11 +661,14 @@ function weekLine(it){
   const row = el("div","wline"), left = el("span");
   left.appendChild(document.createTextNode(it.t + " "));
   if (it.n) left.appendChild(el("span","em",it.n));
+  if (it.floor){ row.append(left, el("span","wt none","i golv")); return row; }
   const s = stats(it.k);
   row.append(left, el("span", "wt" + (s.n ? "" : " none"), s.n ? fmtDur(s.avg) : "–"));
   return row;
 }
 function weekTotal(items){
+  items = items.filter(it => !it.floor);
+  if (!items.length) return el("div","wtot","Mäts i golvet");
   let sum = 0, n = 0;
   items.forEach(it => { const s = stats(it.k); if (s.n){ sum += s.avg; n++; } });
   const t = el("div","wtot");
