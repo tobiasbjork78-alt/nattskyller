@@ -1,4 +1,4 @@
-const CACHE = "natskyll-v7";
+const CACHE = "natskyll-v8";
 const ASSETS = [
   ".",
   "index.html",

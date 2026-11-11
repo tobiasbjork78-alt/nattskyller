@@ -356,7 +356,7 @@
   <div class="panel" id="panel-tider">
     <div class="eyebrow">Mätningar</div>
     <div class="sec" style="margin-top:14px">
-      <div class="sec-h">Snitt per moment</div>
+      <div class="sec-h">Snitt per moment och natt</div>
       <div class="card" id="statwrap"></div>
     </div>
     <div class="sec">
@@ -441,11 +441,11 @@ const DEEP = [
 
 function slug(s){ return String(s).toLowerCase().trim().replace(/[^a-z0-9åäö]+/g,"-").replace(/^-|-$/g,""); }
 
-// Varje natt, per kök. Sopningen smygstartas ofta redan under diskpasset.
+// Varje natt, per kök. Golvet är en mätning per kök; sopningen smygstartas ofta redan under diskpasset,
+// så flera mätningar samma natt läggs ihop (snitt räknas per natt).
 const KITCHENS = ["SKAGERAK","KULL","PIZZAN"];
 const NIGHT = [
-  { h:"Sopa", items: KITCHENS.map(r => ({ k:"sopa:"+slug(r), t:"Sopa – "+r })) },
-  { h:"Skura golv", items: KITCHENS.map(r => ({ k:"skura:"+slug(r), t:"Skura golv – "+r })) },
+  { h:"Golv – sopa, skura, skölja, raka", items: KITCHENS.map(r => ({ k:"golv:"+slug(r), t:"Golv – "+r })) },
   { h:"Övrigt varje natt", items: [
     {k:"n2", t:"Stänga mässen"},
     {k:"n3", t:"Fyll på i kabyssen"},
@@ -523,6 +523,10 @@ function saveS(){ store.set(SKEY, JSON.stringify(sessions)); }
 // Köket hette "PIZZAN (SYD)" i första versionen; flytta ev. mätningar till det nya namnet.
 (function(){
   let ch = false;
+  // Sopa och skura var egna rader i första versionen; nu är de en mätning "Golv" per kök.
+  const golv = o => { const m = /^(sopa|skura):(.+)$/.exec(o.k); if (!m) return null; return { k: "golv:"+m[2], t: "Golv – " + o.t.split(" – ").pop() }; };
+  sessions.forEach(s => { const g = golv(s); if (g){ s.k = g.k; s.t = g.t; ch = true; } });
+  Object.keys(run).forEach(k => { const g = golv({ k, t: run[k].t }); if (g){ const r = run[k]; delete run[k]; if (!run[g.k]){ r.t = g.t; run[g.k] = r; } ch = true; } });
   sessions.forEach(s => { if (/:pizzan-syd$/.test(s.k)){ s.k = s.k.replace(/-syd$/,""); s.t = s.t.replace(" (SYD)",""); ch = true; } });
   Object.keys(run).forEach(k => { if (/:pizzan-syd$/.test(k)){ const r = run[k]; r.t = r.t.replace(" (SYD)",""); run[k.replace(/-syd$/,"")] = r; delete run[k]; ch = true; } });
   if (ch){ saveS(); store.set(RKEY, JSON.stringify(run)); }
@@ -563,10 +567,13 @@ function removeSession(id){
 }
 
 function stats(k){
-  const xs = sessions.filter(s => s.k === k);
-  if (!xs.length) return { n:0 };
-  const ms = xs.map(s => s.ms), sum = ms.reduce((a,b) => a+b, 0);
-  return { n: xs.length, avg: sum/xs.length, min: Math.min(...ms), max: Math.max(...ms) };
+  // Per natt: flera mätningar av samma moment samma natt räknas ihop.
+  const by = {};
+  sessions.forEach(s => { if (s.k === k) by[s.d] = (by[s.d] || 0) + s.ms; });
+  const ms = Object.values(by);
+  if (!ms.length) return { n:0 };
+  const sum = ms.reduce((a,b) => a+b, 0);
+  return { n: ms.length, avg: sum/ms.length, min: Math.min(...ms), max: Math.max(...ms) };
 }
 function tonight(k){
   const xs = sessions.filter(s => s.d === isoDate && (k == null || s.k === k));
@@ -577,7 +584,7 @@ function statLine(k){
   const st = el("span","tstat"), tn = tonight(k), s = stats(k);
   if (tn.n){ st.appendChild(el("b", null, "✓ " + fmtDur(tn.sum) + " i natt")); }
   if (s.n){
-    st.appendChild(document.createTextNode((tn.n ? " · " : "") + "snitt " + fmtDur(s.avg) + " · " + s.n + (s.n === 1 ? " mätning" : " mätningar")));
+    st.appendChild(document.createTextNode((tn.n ? " · " : "") + "snitt " + fmtDur(s.avg) + " · " + s.n + (s.n === 1 ? " natt" : " nätter")));
   }
   if (!tn.n && !s.n) st.textContent = "inte mätt än";
   return st;
@@ -683,7 +690,7 @@ function renderTimes(){
   rows.forEach(o => {
     const r = el("div","srow"), l = el("div","sl");
     l.appendChild(document.createTextNode(o.t));
-    l.appendChild(el("small", null, o.n + (o.n === 1 ? " mätning" : " mätningar") + (o.n > 1 ? " · " + fmtDur(o.min) + "–" + fmtDur(o.max) : "")));
+    l.appendChild(el("small", null, o.n + (o.n === 1 ? " natt" : " nätter") + (o.n > 1 ? " · " + fmtDur(o.min) + "–" + fmtDur(o.max) : "")));
     r.append(l, el("span","sv",fmtDur(o.avg)));
     sw.appendChild(r);
   });
