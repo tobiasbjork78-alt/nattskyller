@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+def buildNo = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'se.seklof.nattlogg'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'se.seklof.nattlogg'
+        minSdk 26
+        targetSdk 34
+        versionCode buildNo
+        versionName "0.1." + buildNo
+    }
+
+    // Hobbyapp som bara installeras från det här arkivets egna utgåvor. Nyckeln ligger i arkivet
+    // för att varje bygge ska få samma signatur, så att en ny version går att installera över den gamla.
+    signingConfigs {
+        release {
+            storeFile file('../nattlogg.jks')
+            storePassword 'nattlogg-hobby'
+            keyAlias 'nattlogg'
+            keyPassword 'nattlogg-hobby'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}

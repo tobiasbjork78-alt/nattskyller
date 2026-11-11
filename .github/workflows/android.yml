@@ -1,0 +1,63 @@
+name: Bygg Nattlogg
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nattlogg
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Bygg APK
+        id: build
+        run: |
+          cd android
+          set -o pipefail
+          gradle --no-daemon --console=plain assembleRelease 2>&1 | tee ../build.log
+
+      - name: Publicera utgåva
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk nattlogg.apk
+          gh release create "nattlogg-${{ github.run_number }}" nattlogg.apk \
+            --title "Nattlogg 0.1.${{ github.run_number }}" \
+            --notes "Wifi-loggaren till Nattskyller. Ladda ner nattlogg.apk och installera." \
+            --latest
+
+      # Byggloggen läggs på grenen ci-out så att den går att läsa via git.
+      - name: Spara bygglogg
+        if: always()
+        run: |
+          mkdir out && cd out
+          cp ../build.log . 2>/dev/null || echo "ingen logg" > build.log
+          echo "run=${{ github.run_number }} sha=${{ github.sha }} build=${{ steps.build.outcome }} job=${{ job.status }}" > status.txt
+          ls -la ../android/app/build/outputs/apk/release/ >> status.txt 2>&1 || true
+          git init -q -b ci-out
+          git config user.name "nattlogg-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A && git commit -q -m "Bygge ${{ github.run_number }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-out
