@@ -438,6 +438,7 @@ const WEEKDAYS = ["Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag","Sön
 // Ändra inget här utan hans besked.
 // "k" sätts när samma jobb återkommer flera dagar och ska dela statistik.
 // "floor" = ingår i golvet i de köken den natten och mäts där, inte som egen rad.
+// "inc" = ingår på samma sätt i ett annat moment (nattmaten ingår i Stänga mässen).
 const DEEP = [
   [ {id:"mo1", t:"Fläktkåpor – KULL · BESÄTTNING · PIZZAN", n:"Endast invändigt"},
     {id:"mo2", t:"Avlopp & galler – KULL", n:"Extra grundligt", floor:["KULL"]} ],
@@ -445,13 +446,13 @@ const DEEP = [
     {id:"tu2", t:"Tak – KULL · SKAGERAK"} ],
   [ {id:"we1", t:"Tak – PIZZAN · KULL"},
     {id:"we2", t:"Avlopp & galler – PIZZAN", n:"Extra grundligt", floor:["PIZZAN"]},
-    {id:"we3", k:"nattmat", t:"Nattmat i mässen"} ],
+    {id:"we3", k:"nattmat", t:"Nattmat i mässen", inc:"n2"} ],
   [ {id:"th1", t:"Avlopp & galler – SKAGERAK", n:"Extra grundligt", floor:["SKAGERAK"]} ],
   [ {id:"fr1", t:"Alla kyl- & värmeskåp i SKAGERAK-buffén"},
     {id:"fr2", t:"Ångrengöraren ända in i kanterna", n:"Glöm inte hörnen"} ],
   [ {id:"sa1", t:"Hiss"},
     {id:"sa2", t:"Spillbrickor från utsuget – runda i taket, KULL"},
-    {id:"sa3", k:"nattmat", t:"Nattmat i mässen"} ],
+    {id:"sa3", k:"nattmat", t:"Nattmat i mässen", inc:"n2"} ],
   [ {id:"su1", t:"Filter & fläktkåpor – SKAGERAK", n:"Invändigt, utvändigt & kanter"},
     {id:"su2", t:"Fläktkåpor – KULL · BESÄTTNING · PIZZAN", n:"Endast utvändigt & kanter"} ]
 ];
@@ -474,7 +475,7 @@ function dayItems(i){
   const out = [];
   DEEP[i].forEach(it => {
     if (it.rooms) it.rooms.forEach(r => out.push({ k:(it.k||it.id)+":"+slug(r), t:it.t+" – "+r, n:it.n }));
-    else out.push({ k:it.k||it.id, t:it.t, n:it.n, floor:it.floor });
+    else out.push({ k:it.k||it.id, t:it.t, n:it.n, floor:it.floor, inc:it.inc });
   });
   return out;
 }
@@ -612,8 +613,8 @@ function taskRow(item){
   const lab = el("span","label");
   lab.appendChild(document.createTextNode(item.t));
   if (item.n) lab.appendChild(el("span","note",item.n));
-  if (item.floor){
-    lab.appendChild(el("span","tstat","Ingår i golvet i natt – mäts på Golv-raden"));
+  if (item.floor || item.inc){
+    lab.appendChild(el("span","tstat", item.floor ? "Ingår i golvet i natt – mäts på Golv-raden" : "Ingår i Stänga mässen i natt – mäts där"));
     top.appendChild(lab); li.appendChild(top);
     return li;
   }
@@ -648,11 +649,13 @@ function renderToday(){
   const deep = document.getElementById("deeplist"); deep.innerHTML = "";
   dayItems(wd).forEach(it => deep.appendChild(taskRow(it)));
   const floorRooms = dayItems(wd).reduce((a,it) => a.concat(it.floor || []), []);
+  const incKeys = dayItems(wd).filter(it => it.inc).map(it => it.inc);
   const nw = document.getElementById("nightwrap"); nw.innerHTML = "";
   NIGHT.forEach(g => {
     const sec = el("section","sec"), grp = el("div","group"), ul = el("ul","tasks");
     g.items.forEach(it => ul.appendChild(taskRow(
-      it.room && floorRooms.indexOf(it.room) >= 0 ? Object.assign({}, it, { n:"I natt med avlopp & galler – extra grundligt" }) : it)));
+      it.room && floorRooms.indexOf(it.room) >= 0 ? Object.assign({}, it, { n:"I natt med avlopp & galler – extra grundligt" })
+      : incKeys.indexOf(it.k) >= 0 ? Object.assign({}, it, { n:"I natt med nattmaten för hela båten" }) : it)));
     grp.appendChild(ul); sec.append(el("div","sec-h",g.h), grp); nw.appendChild(sec);
   });
   const ad = adhocItems(), adl = document.getElementById("adhoclist"); adl.innerHTML = "";
@@ -675,13 +678,13 @@ function weekLine(it){
   const row = el("div","wline"), left = el("span");
   left.appendChild(document.createTextNode(it.t + " "));
   if (it.n) left.appendChild(el("span","em",it.n));
-  if (it.floor){ row.append(left, el("span","wt none","i golv")); return row; }
+  if (it.floor || it.inc){ row.append(left, el("span","wt none", it.floor ? "i golv" : "i mässen")); return row; }
   const s = stats(it.k);
   row.append(left, el("span", "wt" + (s.n ? "" : " none"), s.n ? fmtDur(s.avg) : "–"));
   return row;
 }
 function weekTotal(items){
-  items = items.filter(it => !it.floor);
+  items = items.filter(it => !it.floor && !it.inc);
   if (!items.length) return el("div","wtot","Mäts i golvet");
   let sum = 0, n = 0;
   items.forEach(it => { const s = stats(it.k); if (s.n){ sum += s.avg; n++; } });
