@@ -550,14 +550,14 @@ function saveR(){ store.set(RKEY, JSON.stringify(run)); }
 
 function elapsed(r){ return r.acc + (r.at ? Date.now() - r.at : 0); }
 function runningKey(){ return Object.keys(run).find(k => run[k].at) || null; }
-function pauseRun(k){ const r = run[k]; if (r && r.at){ r.acc += Date.now() - r.at; r.at = null; } }
+function pauseRun(k){ const r = run[k]; if (r && r.at){ r.acc += Date.now() - r.at; r.at = null; r.pa = Date.now(); } }
 
 function startTask(k, t){
   const other = runningKey();
   if (other && other !== k){ pauseRun(other); showToast("Pausade: " + run[other].t); }
   if (run[k]) { if (!run[k].at) run[k].at = Date.now(); }
   else run[k] = { t, start: Date.now(), acc: 0, at: Date.now() };
-  buzz(40); saveR(); renderAll();
+  buzz(40); saveR(); renderAll(); askNotify();
 }
 function pauseTask(k){ pauseRun(k); saveR(); renderAll(); }
 function discardTask(k){
@@ -765,7 +765,7 @@ function tickClocks(){
   const k = runningKey();
   if (k) document.getElementById("nbclock").textContent = fmtClock(elapsed(run[k]));
 }
-function renderAll(){ renderToday(); renderWeek(); renderTimes(); renderNow(); scheduleSync(); }
+function renderAll(){ renderToday(); renderWeek(); renderTimes(); renderNow(); scheduleSync(); syncRunNote(); }
 
 document.getElementById("nbpause").addEventListener("click", () => { const k = runningKey(); if (k) pauseTask(k); });
 document.getElementById("nbdone").addEventListener("click", () => { const k = runningKey(); if (k) finishTask(k); });
@@ -803,6 +803,23 @@ const WKEY = "natskyll:wash", WCFG = "natskyll:washcfg";
 let wash = loadJson(WKEY, null);
 let washCfg = Object.assign({ wash: 45, dry: 60 }, loadJson(WCFG, {}));
 const washEl = document.getElementById("wash");
+let lastChime = 0;
+// Tvättklockans signal: två mjuka toner, lägre och tystare än pizzalarmet.
+function chime(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    [[660, 0], [880, .3]].forEach(([fq, o]) => {
+      const osc = actx.createOscillator(), g = actx.createGain();
+      osc.type = "sine"; osc.frequency.value = fq;
+      g.gain.setValueAtTime(0.0001, t+o);
+      g.gain.exponentialRampToValueAtTime(0.28, t+o+0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+o+0.7);
+      osc.connect(g); g.connect(actx.destination);
+      osc.start(t+o); osc.stop(t+o+0.75);
+    });
+  } catch(e){}
+}
 const STAGE = { wash: { label: "Tvätt", going: "Tvätten går", done: "Tvätten är klar" }, dry: { label: "Tork", going: "Torken går", done: "Torken är klar" } };
 function saveWash(){ store.set(WKEY, JSON.stringify(wash)); }
 function washEnd(){ return wash.start + wash.mins*60000; }
@@ -810,7 +827,7 @@ function clampMins(v, fallback){ const n = Math.round(Number(v)); return n >= 1 
 function startWash(stage, mins){
   wash = { stage, start: Date.now(), mins, alerted: false };
   washCfg[stage] = mins; store.set(WCFG, JSON.stringify(washCfg));
-  saveWash(); buzz(60); renderWash();
+  unlockAudio(); saveWash(); buzz(60); renderWash();
 }
 function stopWash(){ wash = null; saveWash(); renderWash(); }
 function minsField(id, val){
@@ -848,6 +865,11 @@ function renderWash(){
     b.addEventListener("click", () => startWash("dry", clampMins(document.getElementById("drymins").value, washCfg.dry)));
     row.append(b, minsField("drymins", washCfg.dry));
   }
+  if (due && !wash.muted){
+    const m = el("button","btn ghost","Tysta"); m.type = "button";
+    m.addEventListener("click", () => { wash.muted = true; saveWash(); renderWash(); });
+    row.appendChild(m);
+  }
   const c = el("button","btn ghost", due ? "Stäng" : "Avbryt"); c.type = "button";
   c.addEventListener("click", () => { if (due || confirm("Avbryta " + s.label.toLowerCase() + "klockan?")) stopWash(); });
   row.appendChild(c);
@@ -858,10 +880,17 @@ function tickWash(){
   const left = washEnd() - Date.now(), due = left <= 0;
   if (due && !wash.alerted){
     wash.alerted = true; saveWash();
-    buzz([300,150,300,150,300]);
+    buzz([300,150,300,150,300]); lastChime = Date.now(); chime();
     showToast("🧺 " + STAGE[wash.stage].done + " – däck 1", 20000);
+    if (document.hidden && "Notification" in window && Notification.permission === "granted" && navigator.serviceWorker){
+      navigator.serviceWorker.ready.then(r => r.showNotification("🧺 " + STAGE[wash.stage].done, {
+        body: "Däck 1 · klar " + hhmm(washEnd()), tag: "wash", vibrate: [300,150,300], icon: "icon-192.png"
+      })).catch(() => {});
+    }
     renderWash(); return;
   }
+  // Mjuk påminnelse var 12:e sekund i högst fem minuter, tills den tystas eller stängs.
+  if (due && !wash.muted && -left < 5*60000 && Date.now() - lastChime >= 12000){ lastChime = Date.now(); chime(); buzz(120); }
   if (due !== washEl.classList.contains("due")){ renderWash(); return; }
   const t = document.getElementById("washtime"), sub = document.getElementById("washsub");
   if (t && !due) t.textContent = fmtClock(left);
@@ -1163,15 +1192,74 @@ function tickPizza(){
   startRing(false); renderPizza();
 }
 
+// ---------- Styrning från aviseringen (låsskärmen) ----------
+// En fast avisering visar momentet som går, med knapparna Klar och Paus. Tryck där sparas av
+// service workern med klockslag och läggs in här nästa gång appen är framme.
+let noteState = "";
+function askNotify(){
+  try {
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().then(() => syncRunNote(true));
+  } catch(e){}
+}
+function syncRunNote(force){
+  if (!("serviceWorker" in navigator) || !("Notification" in window) || Notification.permission !== "granted") return;
+  let k = runningKey(), paused = false;
+  if (!k){
+    const ps = Object.keys(run).sort((a,b) => (run[b].pa || 0) - (run[a].pa || 0));
+    if (ps.length){ k = ps[0]; paused = true; }
+  }
+  const state = k ? k + "|" + paused : "";
+  if (!force && state === noteState) return;
+  noteState = state;
+  navigator.serviceWorker.ready.then(reg => {
+    if (!k) return reg.getNotifications({ tag: "run" }).then(ns => ns.forEach(n => n.close()));
+    const r = run[k]; if (!r) return;
+    return reg.showNotification((paused ? "Pausad: " : "Pågår: ") + r.t, {
+      body: paused ? "Tryck Fortsätt eller Klar" : "Startad " + hhmm(r.start) + " · tryck Klar när du är färdig",
+      tag: "run", silent: true, requireInteraction: true, icon: "icon-192.png", timestamp: r.start,
+      data: { k, t: r.t, start: r.start },
+      actions: paused ? [{ action: "fortsatt", title: "Fortsätt" }, { action: "klar", title: "Klar" }]
+                      : [{ action: "klar", title: "Klar" }, { action: "paus", title: "Paus" }]
+    });
+  }).catch(() => {});
+}
+function applyPending(){
+  if (!("serviceWorker" in navigator) || !window.caches) return;
+  navigator.serviceWorker.ready.then(async reg => {
+    const c = await caches.open("natskyll-state"), url = new URL("__actions", reg.scope).href;
+    const res = await c.match(url); if (!res) return;
+    let list = []; try { list = await res.json(); } catch(e){}
+    await c.delete(url);
+    let n = 0, last = "";
+    list.forEach(x => {
+      const r = run[x.k]; if (!r) return;
+      if (x.a === "paus"){ if (r.at){ r.acc += Math.max(0, x.t - r.at); r.at = null; r.pa = x.t; n++; } }
+      else if (x.a === "fortsatt"){ if (!r.at){ const o = runningKey(); if (o && o !== x.k) pauseRun(o); r.at = x.t; n++; } }
+      else if (x.a === "klar"){
+        const ms = r.acc + (r.at ? Math.max(0, x.t - r.at) : 0);
+        if (ms >= 5000){
+          sessions.push({ id: x.t + "-" + Math.floor(Math.random()*1e6), k: x.k, t: r.t, d: shiftIso(r.start), s: r.start, e: x.t, ms });
+          last = r.t + " · " + fmtDur(ms);
+        }
+        delete run[x.k]; n++;
+      }
+    });
+    if (n){ saveS(); saveR(); renderAll(); if (last) showToast("Sparat från aviseringen: " + last); }
+  }).catch(() => {});
+}
+if ("serviceWorker" in navigator){
+  navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.type === "run-action") applyPending(); });
+}
+
 // ---------- Start ----------
 document.getElementById("weekday").textContent = WEEKDAYS[wd];
 document.getElementById("date").textContent = now.toLocaleDateString("sv-SE",{day:"numeric",month:"long"});
-renderAll(); renderWash(); renderFree(); renderPizza(); renderGh(); tickPizza();
+renderAll(); renderWash(); renderFree(); renderPizza(); renderGh(); tickPizza(); applyPending();
 setInterval(() => { tickClocks(); tickWash(); tickFree(); tickPizza(); }, 1000);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   if (shiftIso(Date.now()) !== isoDate){ location.reload(); return; }
-  tickClocks(); tickWash(); tickFree(); tickPizza(); scheduleSync();
+  tickClocks(); tickWash(); tickFree(); tickPizza(); scheduleSync(); applyPending();
 });
 
 // ---------- Nedräkning till avmönstring ----------
