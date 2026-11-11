@@ -418,30 +418,31 @@ function loadJson(key, fallback){
 
 const WEEKDAYS = ["Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag","Söndag"];
 
-// Djupstäd per veckodag, exakt enligt arbetsschemat. Ändra inte texterna här utan Tobbes besked.
+// Djupstäd per veckodag enligt arbetsschemat, med Tobbes namn på köken (2026-11-11):
+// SYD = PIZZAN, NORD = KULL, à la carte = KULL. Tak i BESÄTTNING är struket. Ändra inget här utan hans besked.
 // "k" sätts när samma jobb återkommer flera dagar och ska dela statistik.
 const DEEP = [
-  [ {id:"mo1", t:"Fläktkåpor – KULL · BESÄTTNING · SYD · NORD", n:"Endast invändigt"},
-    {id:"mo2", t:"Avlopp & galler i à la carte-köket", n:"Extra grundligt"} ],
+  [ {id:"mo1", t:"Fläktkåpor – KULL · BESÄTTNING · PIZZAN", n:"Endast invändigt"},
+    {id:"mo2", t:"Avlopp & galler – KULL", n:"Extra grundligt"} ],
   [ {id:"tu1", t:"Barnbuffé – skåp & väggar i SKAGERAK"},
-    {id:"tu2", t:"Tak – KULL · BESÄTTNING · SKAGERAK"} ],
-  [ {id:"we1", t:"Tak – SYD · NORD"},
-    {id:"we2", t:"Avlopp & galler – SYD · NORD", n:"Extra grundligt"},
+    {id:"tu2", t:"Tak – KULL · SKAGERAK"} ],
+  [ {id:"we1", t:"Tak – PIZZAN · KULL"},
+    {id:"we2", t:"Avlopp & galler – PIZZAN · KULL", n:"Extra grundligt"},
     {id:"we3", k:"nattmat", t:"Nattmat i mässen"} ],
-  [ {id:"th1", t:"Avlopp & galler i SKAGERAK-köket", n:"Extra grundligt"} ],
+  [ {id:"th1", t:"Avlopp & galler – SKAGERAK", n:"Extra grundligt"} ],
   [ {id:"fr1", t:"Alla kyl- & värmeskåp i SKAGERAK-buffén"},
     {id:"fr2", t:"Ångrengöraren ända in i kanterna", n:"Glöm inte hörnen"} ],
   [ {id:"sa1", t:"Hiss"},
     {id:"sa2", t:"Spillbrickor från utsuget – runda i taket, KULL"},
     {id:"sa3", k:"nattmat", t:"Nattmat i mässen"} ],
   [ {id:"su1", t:"Filter & fläktkåpor – SKAGERAK", n:"Invändigt, utvändigt & kanter"},
-    {id:"su2", t:"Fläktkåpor – KULL · BESÄTTNING · SYD · NORD", n:"Endast utvändigt & kanter"} ]
+    {id:"su2", t:"Fläktkåpor – KULL · BESÄTTNING · PIZZAN", n:"Endast utvändigt & kanter"} ]
 ];
 
 function slug(s){ return String(s).toLowerCase().trim().replace(/[^a-z0-9åäö]+/g,"-").replace(/^-|-$/g,""); }
 
 // Varje natt, per kök. Sopningen smygstartas ofta redan under diskpasset.
-const KITCHENS = ["SKAGERAK","KULL","PIZZAN (SYD)"];
+const KITCHENS = ["SKAGERAK","KULL","PIZZAN"];
 const NIGHT = [
   { h:"Sopa", items: KITCHENS.map(r => ({ k:"sopa:"+slug(r), t:"Sopa – "+r })) },
   { h:"Skura golv", items: KITCHENS.map(r => ({ k:"skura:"+slug(r), t:"Skura golv – "+r })) },
@@ -519,6 +520,13 @@ if (!Array.isArray(sessions)) sessions = [];
 let run = loadJson(RKEY, {});
 if (!run || typeof run !== "object" || Array.isArray(run)) run = {};
 function saveS(){ store.set(SKEY, JSON.stringify(sessions)); }
+// Köket hette "PIZZAN (SYD)" i första versionen; flytta ev. mätningar till det nya namnet.
+(function(){
+  let ch = false;
+  sessions.forEach(s => { if (/:pizzan-syd$/.test(s.k)){ s.k = s.k.replace(/-syd$/,""); s.t = s.t.replace(" (SYD)",""); ch = true; } });
+  Object.keys(run).forEach(k => { if (/:pizzan-syd$/.test(k)){ const r = run[k]; r.t = r.t.replace(" (SYD)",""); run[k.replace(/-syd$/,"")] = r; delete run[k]; ch = true; } });
+  if (ch){ saveS(); store.set(RKEY, JSON.stringify(run)); }
+})();
 function saveR(){ store.set(RKEY, JSON.stringify(run)); }
 
 function elapsed(r){ return r.acc + (r.at ? Date.now() - r.at : 0); }
