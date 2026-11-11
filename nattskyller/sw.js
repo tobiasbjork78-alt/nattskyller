@@ -10,7 +10,8 @@ const ASSETS = [
   "img/skagerak.jpg", "img/skagerak-t.jpg",
   "img/kull.jpg", "img/kull-t.jpg",
   "img/pizzan.jpg", "img/pizzan-t.jpg",
-  "img/brdisk.jpg", "img/brdisk-t.jpg"
+  "img/brdisk.jpg", "img/brdisk-t.jpg",
+  "img/skagdisk.jpg", "img/skagdisk-t.jpg"
 ];
 
 self.addEventListener("install", e => {

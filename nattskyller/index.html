@@ -1110,7 +1110,9 @@ function renderFree(){
   if (!f){
     freeEl.appendChild(el("div","free-label","Diskpasset"));
     const row = el("div","free-row");
-    row.appendChild(thumbEl("brdisk", "BR-DISKEN"));
+    const dw = el("div","thumbs");
+    dw.append(thumbEl("skagdisk", "SKAGERAK-DISKEN"), thumbEl("brdisk", "BR-DISKEN"));
+    row.appendChild(dw);
     row.appendChild(el("div","free-txt","Tryck när disken släpper dig och natten är din."));
     const b = el("button","btn go","Släppt nu"); b.type = "button";
     b.addEventListener("click", () => { free[isoDate] = Date.now(); saveFree(); buzz(60); renderAll(); renderFree(); });
