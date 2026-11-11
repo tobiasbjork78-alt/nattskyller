@@ -82,6 +82,16 @@
   .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:700;}
   .btn:active{filter:brightness(.9);}
 
+  /* Köksbilder */
+  .thead{display:flex;gap:11px;align-items:center;flex:1;min-width:0;}
+  .thumbs{display:flex;flex:0 0 auto;}
+  .thumb{width:46px;height:46px;border-radius:11px;object-fit:cover;border:1px solid var(--line);background:var(--raised);cursor:pointer;display:block;}
+  .thumbs .thumb + .thumb{margin-left:-18px;box-shadow:-2px 0 0 var(--surface);}
+  .lb{position:fixed;inset:0;z-index:90;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(6,10,13,.94);padding:18px;}
+  .lb.show{display:flex;}
+  .lb img{max-width:100%;max-height:80vh;border-radius:14px;}
+  .lb div{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);font-weight:700;}
+
   /* Tidtagning */
   ul.tasks{list-style:none;margin:0;padding:0;}
   .trow{padding:13px 14px;border-top:1px solid var(--line);transition:background .15s ease;}
@@ -405,6 +415,8 @@
   </div>
 </div>
 
+<div class="lb" id="lb"><img id="lbimg" alt=""><div id="lbcap"></div></div>
+
 <div class="nowbar" id="nowbar">
   <div class="nb-l">
     <div class="nb-t">Pågår</div>
@@ -606,6 +618,32 @@ function statLine(k){
   return st;
 }
 
+// Köksbilder: en liten bild på raden visar vilket kök det gäller. Tryck på den för att se köket stort.
+const KITCHEN_IMG = { SKAGERAK: "skagerak", KULL: "kull", PIZZAN: "pizzan" };
+function kitchensIn(item){
+  if (item.room) return [item.room];
+  return Object.keys(KITCHEN_IMG).filter(k => new RegExp(k, "i").test(item.t));
+}
+function thumbEl(file, name){
+  const im = document.createElement("img");
+  im.className = "thumb"; im.src = "img/" + file + "-t.jpg"; im.alt = name; im.loading = "lazy"; im.width = 46; im.height = 46;
+  im.addEventListener("click", e => { e.stopPropagation(); showPhoto(file, name); });
+  return im;
+}
+function thumbsFor(item){
+  const ks = kitchensIn(item);
+  if (!ks.length) return null;
+  const w = el("div","thumbs");
+  ks.forEach(k => w.appendChild(thumbEl(KITCHEN_IMG[k], k)));
+  return w;
+}
+function showPhoto(file, name){
+  document.getElementById("lbimg").src = "img/" + file + ".jpg";
+  document.getElementById("lbcap").textContent = name;
+  document.getElementById("lb").classList.add("show");
+}
+document.getElementById("lb").addEventListener("click", () => document.getElementById("lb").classList.remove("show"));
+
 function taskRow(item){
   const r = run[item.k];
   const li = el("li", "trow" + (r ? (r.at ? " running" : " paused") : ""));
@@ -613,9 +651,12 @@ function taskRow(item){
   const lab = el("span","label");
   lab.appendChild(document.createTextNode(item.t));
   if (item.n) lab.appendChild(el("span","note",item.n));
+  const head = el("div","thead"), th = thumbsFor(item);
+  if (th) head.appendChild(th);
+  head.appendChild(lab);
   if (item.floor || item.inc){
     lab.appendChild(el("span","tstat", item.floor ? "Ingår i golvet i natt – mäts på Golv-raden" : "Ingår i Stänga mässen i natt – mäts där"));
-    top.appendChild(lab); li.appendChild(top);
+    top.appendChild(head); li.appendChild(top);
     return li;
   }
   lab.appendChild(statLine(item.k));
@@ -634,7 +675,7 @@ function taskRow(item){
     d.addEventListener("click", () => finishTask(item.k));
     ctl.append(c, x, p, d);
   }
-  top.append(lab, ctl); li.appendChild(top);
+  top.append(head, ctl); li.appendChild(top);
   return li;
 }
 
@@ -1069,6 +1110,7 @@ function renderFree(){
   if (!f){
     freeEl.appendChild(el("div","free-label","Diskpasset"));
     const row = el("div","free-row");
+    row.appendChild(thumbEl("brdisk", "BR-DISKEN"));
     row.appendChild(el("div","free-txt","Tryck när disken släpper dig och natten är din."));
     const b = el("button","btn go","Släppt nu"); b.type = "button";
     b.addEventListener("click", () => { free[isoDate] = Date.now(); saveFree(); buzz(60); renderAll(); renderFree(); });

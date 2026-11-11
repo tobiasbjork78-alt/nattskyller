@@ -1,4 +1,4 @@
-const CACHE = "natskyll-v14";
+const CACHE = "natskyll-v15";
 // Egen cache för tryck på aviseringens knappar. Den ska överleva versionsbyten.
 const STATE = "natskyll-state";
 const ASSETS = [
@@ -6,7 +6,11 @@ const ASSETS = [
   "index.html",
   "manifest.webmanifest",
   "icon-192.png",
-  "icon-512.png"
+  "icon-512.png",
+  "img/skagerak.jpg", "img/skagerak-t.jpg",
+  "img/kull.jpg", "img/kull-t.jpg",
+  "img/pizzan.jpg", "img/pizzan-t.jpg",
+  "img/brdisk.jpg", "img/brdisk-t.jpg"
 ];
 
 self.addEventListener("install", e => {
