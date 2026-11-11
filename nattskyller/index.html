@@ -211,6 +211,17 @@
   .empty{padding:14px 0;color:var(--muted);font-size:13.5px;}
   .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
 
+  .gh{padding:14px 0;}
+  .gh p{margin:0 0 10px;font-size:13.5px;color:var(--muted);}
+  .gh p b{color:var(--text);font-weight:600;}
+  .gh p.err{color:#ff9a8a;}
+  .gh label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;}
+  .gh input{
+    width:100%;background:var(--raised);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:11px 12px;font-size:15px;font-family:inherit;
+  }
+  .gh .actions{margin-top:12px;}
+
   /* Avmönstrings-nedräkning */
   .off{
     --c:var(--muted);--spd:7s;--bob:2.6s;
@@ -370,11 +381,15 @@
     <div class="actions">
       <button class="btn ghost" id="copydata" type="button">Kopiera all data</button>
     </div>
+    <div class="sec">
+      <div class="sec-h">Backup till GitHub</div>
+      <div class="card"><div class="gh" id="ghwrap"></div></div>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
 
-  <footer>Tiderna sparas bara i den här telefonen. Nytt skiftdygn börjar kl 06:00.</footer>
+  <footer>Tiderna sparas i den här telefonen, och i ditt GitHub-arkiv om backup är påslagen. Nytt skiftdygn börjar kl 06:00.</footer>
 </div>
 
 <div class="alarm" id="alarm" role="alertdialog" aria-label="Pizzalarm">
@@ -749,7 +764,7 @@ function tickClocks(){
   const k = runningKey();
   if (k) document.getElementById("nbclock").textContent = fmtClock(elapsed(run[k]));
 }
-function renderAll(){ renderToday(); renderWeek(); renderTimes(); renderNow(); }
+function renderAll(){ renderToday(); renderWeek(); renderTimes(); renderNow(); scheduleSync(); }
 
 document.getElementById("nbpause").addEventListener("click", () => { const k = runningKey(); if (k) pauseTask(k); });
 document.getElementById("nbdone").addEventListener("click", () => { const k = runningKey(); if (k) finishTask(k); });
@@ -851,6 +866,144 @@ function tickWash(){
   if (t && !due) t.textContent = fmtClock(left);
   if (sub && due) sub.textContent = "sedan " + fmtDur(-left) + " · klar " + hhmm(washEnd());
 }
+
+// ---------- Backup till GitHub ----------
+// En fil per natt (data/ÅÅÅÅ-MM-DD.json) i ett privat arkiv. Nyckeln ligger bara i telefonen, aldrig i koden.
+const GKEY = "natskyll:gh", GSYNC = "natskyll:ghsync", GLAST = "natskyll:ghlast";
+let gh = loadJson(GKEY, null);
+let ghSync = loadJson(GSYNC, {});
+if (!ghSync || typeof ghSync !== "object" || Array.isArray(ghSync)) ghSync = {};
+const ghState = { busy:false, err:"", last: Number(store.get(GLAST) || 0) };
+let ghEdit = false, ghTimer = null;
+function hash(str){ let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return h + ":" + str.length; }
+function nightPayload(d){
+  const xs = sessions.filter(s => s.d === d).sort((a,b) => a.s - b.s);
+  return JSON.stringify({
+    datum: d,
+    slapptFranDisken: free[d] ? hhmm(free[d]) : null,
+    slapptMs: free[d] || null,
+    matningar: xs.map(s => ({ moment: s.t, nyckel: s.k, start: hhmm(s.s), slut: hhmm(s.e), minuter: Math.round(s.ms/6000)/10, startMs: s.s, slutMs: s.e }))
+  }, null, 1);
+}
+function ghDates(){
+  const o = {};
+  sessions.forEach(s => o[s.d] = 1); Object.keys(free).forEach(d => o[d] = 1); Object.keys(ghSync).forEach(d => o[d] = 1);
+  return Object.keys(o).sort();
+}
+function ghPending(){ return ghDates().filter(d => !ghSync[d] || ghSync[d].h !== hash(nightPayload(d))); }
+function ghApi(path, opt){
+  return fetch("https://api.github.com/repos/" + gh.repo + path, Object.assign({
+    cache: "no-store",
+    headers: { Authorization: "Bearer " + gh.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }
+  }, opt || {}));
+}
+function b64(str){ return btoa(unescape(encodeURIComponent(str))); }
+async function ghPut(d, body, retry){
+  const path = "/contents/data/" + d + ".json";
+  let sha = ghSync[d] && ghSync[d].sha;
+  if (!sha){
+    const g = await ghApi(path);
+    if (g.status === 200) sha = (await g.json()).sha;
+    else if (g.status !== 404) throw new Error(String(g.status));
+  }
+  const r = await ghApi(path, { method: "PUT", body: JSON.stringify(Object.assign({ message: "Natt " + d, content: b64(body) }, sha ? { sha } : {})) });
+  if ((r.status === 409 || r.status === 422) && !retry){ delete ghSync[d]; return ghPut(d, body, true); }
+  if (!r.ok) throw new Error(String(r.status));
+  const j = await r.json();
+  ghSync[d] = { h: hash(body), sha: j.content && j.content.sha };
+  store.set(GSYNC, JSON.stringify(ghSync));
+}
+async function ghSyncNow(manual){
+  if (!gh || !gh.token || !gh.repo || ghState.busy) return;
+  const todo = ghPending();
+  if (!todo.length){ if (manual){ ghState.err = ""; renderGh(); showToast("Allt är redan sparat"); } return; }
+  if (navigator.onLine === false){ ghState.err = "nät"; renderGh(); return; }
+  ghState.busy = true; renderGh();
+  try {
+    for (const d of todo) await ghPut(d, nightPayload(d));
+    ghState.err = ""; ghState.last = Date.now(); store.set(GLAST, String(ghState.last));
+    if (manual) showToast("Sparat till GitHub");
+  } catch(e){ ghState.err = e && /^\d+$/.test(e.message) ? e.message : "nät"; }
+  ghState.busy = false; renderGh();
+}
+function scheduleSync(){
+  if (!gh) return;
+  clearTimeout(ghTimer); ghTimer = setTimeout(() => ghSyncNow(false), 4000);
+  renderGh();
+}
+function ghErrText(e){
+  if (e === "401") return "Nyckeln godkänns inte. Den kan ha gått ut eller vara felklistrad.";
+  if (e === "403") return "Nyckeln får inte skriva till arkivet. Den behöver Contents: Read and write.";
+  if (e === "404") return "Hittar inte arkivet. Kontrollera namnet och att nyckeln gäller just det arkivet.";
+  if (e === "nät") return "Inget nät just nu. Tiderna ligger kvar i telefonen och skickas när nätet är tillbaka.";
+  return "GitHub svarade med fel " + e + ". Försöker igen senare.";
+}
+function renderGh(){
+  const w = document.getElementById("ghwrap"); if (!w) return;
+  if (ghEdit && w.querySelector("input")) return;
+  w.innerHTML = "";
+  if (ghEdit){
+    w.appendChild(el("p", null, "Nyckeln sparas bara i den här telefonen."));
+    const l1 = el("label", null, "Arkiv (konto/namn)"); l1.htmlFor = "ghrepo";
+    const repo = document.createElement("input"); repo.id = "ghrepo"; repo.type = "text"; repo.autocapitalize = "off"; repo.autocomplete = "off"; repo.spellcheck = false;
+    repo.value = gh ? gh.repo : "tobiasbjork78-alt/nattskyller-data";
+    const l2 = el("label", null, "Nyckel (börjar med github_pat_)"); l2.htmlFor = "ghtoken";
+    const tok = document.createElement("input"); tok.id = "ghtoken"; tok.type = "password"; tok.autocomplete = "off";
+    tok.placeholder = gh ? "Lämna tomt för att behålla nuvarande nyckel" : "Klistra in nyckeln här";
+    const act = el("div","actions");
+    const save = el("button","btn go sm","Spara och testa"); save.type = "button";
+    save.addEventListener("click", async () => {
+      const r = repo.value.trim().replace(/^https?:\/\/github\.com\//i,"").replace(/\.git$/i,"").replace(/^\/|\/$/g,"");
+      const t = tok.value.replace(/\s+/g,"") || (gh && gh.token) || "";
+      if (!/^[^\/\s]+\/[^\/\s]+$/.test(r)){ showToast("Arkivet ska skrivas som konto/namn"); return; }
+      if (!t){ tok.focus(); return; }
+      gh = { repo: r, token: t }; store.set(GKEY, JSON.stringify(gh));
+      ghEdit = false; ghState.err = ""; ghState.busy = true; renderGh();
+      try {
+        const res = await ghApi("");
+        if (!res.ok) throw new Error(String(res.status));
+        ghState.busy = false; showToast("Kopplingen fungerar"); await ghSyncNow(false);
+      } catch(e){ ghState.busy = false; ghState.err = e && /^\d+$/.test(e.message) ? e.message : "nät"; }
+      renderGh();
+    });
+    const cancel = el("button","btn ghost sm","Avbryt"); cancel.type = "button";
+    cancel.addEventListener("click", () => { ghEdit = false; renderGh(); });
+    act.append(save, cancel);
+    if (gh){
+      const off = el("button","btn ghost sm","Koppla från"); off.type = "button";
+      off.addEventListener("click", () => {
+        if (!confirm("Koppla från backupen? Det som redan är sparat på GitHub ligger kvar.")) return;
+        gh = null; store.set(GKEY, "null"); ghEdit = false; ghState.err = ""; renderGh();
+      });
+      act.appendChild(off);
+    }
+    w.append(l1, repo, l2, tok, act);
+    return;
+  }
+  if (!gh){
+    w.appendChild(el("p", null, "Av. Tiderna ligger bara i den här telefonen."));
+    const b = el("button","btn go sm","Ställ in backup"); b.type = "button";
+    b.addEventListener("click", () => { ghEdit = true; renderGh(); });
+    w.appendChild(b);
+    return;
+  }
+  const n = ghPending().length, p = el("p");
+  p.appendChild(el("b", null, gh.repo));
+  let txt = " · ";
+  if (ghState.busy) txt += "skickar …";
+  else if (n) txt += n + (n === 1 ? " natt väntar på att skickas" : " nätter väntar på att skickas");
+  else txt += "allt sparat" + (ghState.last ? " " + (shiftIso(ghState.last) === isoDate ? hhmm(ghState.last) : new Date(ghState.last).toLocaleDateString("sv-SE",{day:"numeric",month:"short"})) : "");
+  p.appendChild(document.createTextNode(txt));
+  w.appendChild(p);
+  if (ghState.err && !ghState.busy) w.appendChild(el("p","err",ghErrText(ghState.err)));
+  const act = el("div","actions");
+  const now = el("button","btn go sm","Skicka nu"); now.type = "button";
+  now.addEventListener("click", () => ghSyncNow(true));
+  const ed = el("button","btn ghost sm","Ändra"); ed.type = "button";
+  ed.addEventListener("click", () => { ghEdit = true; renderGh(); });
+  act.append(now, ed); w.appendChild(act);
+}
+window.addEventListener("online", () => ghSyncNow(false));
 
 // ---------- Släppt från disken (kort på Idag) ----------
 const freeEl = document.getElementById("free");
@@ -1012,12 +1165,12 @@ function tickPizza(){
 // ---------- Start ----------
 document.getElementById("weekday").textContent = WEEKDAYS[wd];
 document.getElementById("date").textContent = now.toLocaleDateString("sv-SE",{day:"numeric",month:"long"});
-renderAll(); renderWash(); renderFree(); renderPizza(); tickPizza();
+renderAll(); renderWash(); renderFree(); renderPizza(); renderGh(); tickPizza();
 setInterval(() => { tickClocks(); tickWash(); tickFree(); tickPizza(); }, 1000);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   if (shiftIso(Date.now()) !== isoDate){ location.reload(); return; }
-  tickClocks(); tickWash(); tickFree(); tickPizza();
+  tickClocks(); tickWash(); tickFree(); tickPizza(); scheduleSync();
 });
 
 // ---------- Nedräkning till avmönstring ----------

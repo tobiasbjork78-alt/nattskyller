@@ -1,4 +1,4 @@
-const CACHE = "natskyll-v10";
+const CACHE = "natskyll-v11";
 const ASSETS = [
   ".",
   "index.html",
@@ -20,6 +20,8 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  // Bara appens egna filer cachas. Anrop till GitHub (backupen) går alltid direkt mot nätet.
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
       const copy = res.clone();
