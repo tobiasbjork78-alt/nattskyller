@@ -35,7 +35,7 @@
     min-height:100vh;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:560px;margin:0 auto;padding:16px 18px 64px;}
+  .wrap{max-width:560px;margin:0 auto;padding:16px 18px 120px;}
 
   .tabbar{
     display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);
@@ -45,7 +45,7 @@
   .tab{
     flex:1;border:none;background:transparent;color:var(--muted);
     font-size:14px;font-weight:700;padding:11px 8px;border-radius:8px;cursor:pointer;
-    transition:background .15s ease,color .15s ease;
+    transition:background .15s ease,color .15s ease;font-family:inherit;
   }
   .tab.active{background:var(--raised);color:var(--text);}
   .panel{display:none;}
@@ -58,11 +58,6 @@
   .dayrow{display:flex;align-items:baseline;gap:12px;margin-top:14px;}
   .weekday{font-size:46px;font-weight:800;letter-spacing:-.02em;line-height:.95;margin:0;text-transform:capitalize;}
   .date{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums;}
-
-  .prog{margin-top:16px;}
-  .progbar{height:6px;border-radius:4px;background:var(--raised);overflow:hidden;}
-  .progfill{height:100%;width:0;background:var(--sea);border-radius:4px;transition:width .35s ease;}
-  .progtxt{font-size:12px;color:var(--muted);margin-top:7px;font-variant-numeric:tabular-nums;}
 
   .sec{margin-top:26px;}
   .sec-h{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 10px 2px;}
@@ -77,82 +72,144 @@
     font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);font-weight:700;
   }
   .deep .deep-label::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
-
-  ul.tasks{list-style:none;margin:0;padding:0;}
-  .task{
-    display:flex;align-items:flex-start;gap:13px;padding:13px 14px;min-height:52px;cursor:pointer;
-    border-top:1px solid var(--line);transition:background .12s ease;user-select:none;
-  }
-  .group .task:first-child{border-top:none;}
-  .deep .task:first-of-type{border-top:1px solid var(--amber-dim);}
-  .deep .task{border-top-color:rgba(224,166,99,.18);}
-  .task:active{background:rgba(255,255,255,.03);}
-  .box{
-    flex:0 0 auto;width:24px;height:24px;border-radius:7px;margin-top:1px;
-    border:2px solid var(--line);background:transparent;
-    display:flex;align-items:center;justify-content:center;
-    transition:border-color .15s ease, background .15s ease;
-  }
-  .deep .box{border-color:var(--amber-dim);}
-  .box svg{width:14px;height:14px;opacity:0;transform:scale(.5);transition:opacity .15s ease,transform .15s ease;}
-  .task.done .box{background:var(--sea);border-color:var(--sea);}
-  .task.done .box svg{opacity:1;transform:scale(1);}
-  .label{font-size:15.5px;flex:1;padding-top:1px;}
-  .task.done .label{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--sea-dim);}
-  .note{display:block;font-size:12.5px;color:var(--amber);margin-top:3px;font-weight:600;}
-  .task.done .note{color:var(--sea-dim);text-decoration:none;}
-
   .group{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
 
-  .reset{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:7px 14px;font-size:12px;margin-top:18px;cursor:pointer;}
-  .reset:active{background:var(--raised);}
+  /* Knappar */
+  .btn{border:none;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1.1;}
+  .btn.sm{padding:10px 13px;font-size:13.5px;}
+  .btn.go{background:var(--sea);color:#0c1512;}
+  .btn.amber{background:var(--amber);color:#1a130a;}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:700;}
+  .btn:active{filter:brightness(.9);}
 
+  /* Tidtagning */
+  ul.tasks{list-style:none;margin:0;padding:0;}
+  .trow{padding:13px 14px;border-top:1px solid var(--line);transition:background .15s ease;}
+  .group .trow:first-child{border-top:none;}
+  .deep .trow{border-top-color:rgba(224,166,99,.18);}
+  .deep .trow:first-of-type{border-top:1px solid var(--amber-dim);}
+  .trow.running{background:rgba(95,184,144,.09);}
+  .trow.paused{background:rgba(224,166,99,.07);}
+  .trow-top{display:flex;gap:12px;align-items:center;}
+  .trow.running .trow-top,.trow.paused .trow-top{flex-direction:column;align-items:stretch;gap:10px;}
+  .label{font-size:15.5px;flex:1;min-width:0;}
+  .note{display:block;font-size:12.5px;color:var(--amber);margin-top:3px;font-weight:600;}
+  .tstat{display:block;font-size:12px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums;}
+  .tstat b{color:var(--sea);font-weight:700;}
+  .tctl{display:flex;gap:8px;align-items:center;flex:0 0 auto;}
+  .clock{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;flex:1;letter-spacing:-.01em;}
+  .trow.running .clock{color:var(--sea);}
+  .trow.paused .clock{color:var(--amber);}
+
+  .adhoc{display:flex;gap:8px;margin-top:10px;}
+  .adhoc input{
+    flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:11px 12px;font-size:15px;font-family:inherit;
+  }
+  .adhoc input::placeholder{color:#5d6f7c;}
+  .sum{margin-top:18px;font-size:13px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;}
+  .sum b{color:var(--text);}
+  .lastline{margin-top:14px;font-size:13px;color:var(--muted);text-align:center;}
+
+  /* Tvättklocka */
+  .wash{
+    margin-top:22px;padding:15px 16px;border-radius:16px;
+    background:linear-gradient(160deg,#12211c,#0f1a17);border:1px solid var(--sea-dim);
+    transition:border-color .3s ease, box-shadow .3s ease;
+  }
+  .wash.due{border-color:var(--amber);background:linear-gradient(160deg,#241d12,#1a1810);box-shadow:0 0 26px rgba(224,166,99,.22);animation:washpulse 1.6s ease-in-out infinite;}
+  @keyframes washpulse{0%,100%{box-shadow:0 0 18px rgba(224,166,99,.15)}50%{box-shadow:0 0 34px rgba(224,166,99,.38)}}
+  .wash-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--sea);font-weight:700;}
+  .wash.due .wash-label{color:var(--amber);}
+  .wash-title{font-size:15.5px;font-weight:600;margin-top:3px;}
+  .wash-time{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.1;margin-top:6px;color:var(--sea);}
+  .wash.due .wash-time{color:var(--amber);}
+  .wash-sub{font-size:12.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums;}
+  .wash-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center;}
+  .mins{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;}
+  .mins input{
+    width:58px;background:var(--raised);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:9px 6px;font-size:15px;text-align:center;font-family:inherit;
+  }
+
+  /* Släppt från disken */
+  .free{margin-top:14px;padding:14px 16px;border-radius:16px;background:var(--surface);border:1px solid var(--line);}
+  .free.on{border-color:var(--sea-dim);background:linear-gradient(160deg,#12211c,#0f1a17);}
+  .free-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  .free.on .free-label{color:var(--sea);}
+  .free-row{display:flex;align-items:center;gap:12px;margin-top:6px;}
+  .free-txt{flex:1;min-width:0;font-size:15px;}
+  .free-big{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.1;color:var(--sea);}
+  .free-sub{font-size:12.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums;}
+  .timein{
+    background:var(--raised);border:1px solid var(--line);color:var(--text);border-radius:9px;
+    padding:9px 10px;font-size:15px;font-family:inherit;color-scheme:dark;
+  }
+
+  /* Pizzalarm */
+  .pizza{margin-top:14px;padding:13px 16px;border-radius:16px;background:var(--surface);border:1px solid var(--line);}
+  .pizza.on{border-color:var(--amber-dim);}
+  .pizza-row{display:flex;align-items:center;gap:12px;}
+  .pizza-t{flex:1;min-width:0;font-size:15.5px;font-weight:600;}
+  .pizza-sub{font-size:12.5px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums;}
+  .pizza-sub button{background:none;border:none;color:var(--amber);font-size:12.5px;padding:0 0 0 6px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-family:inherit;}
+  .sw{position:relative;width:54px;height:32px;flex:0 0 auto;}
+  .sw input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;z-index:1;}
+  .sw span{position:absolute;inset:0;background:var(--raised);border:1px solid var(--line);border-radius:32px;transition:.2s;}
+  .sw span::after{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;border-radius:50%;background:var(--muted);transition:.2s;}
+  .sw input:checked + span{background:var(--amber);border-color:var(--amber);}
+  .sw input:checked + span::after{transform:translateX(22px);background:#1a130a;}
+
+  .alarm{
+    position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    padding:24px;background:#b3261e;animation:alarmflash .7s steps(1) infinite;
+  }
+  .alarm.show{display:flex;}
+  @keyframes alarmflash{0%{background:#b3261e}50%{background:#E0A663}}
+  .alarm-in{width:100%;max-width:420px;background:var(--bg);border-radius:22px;padding:26px 20px 20px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .alarm-ico{font-size:72px;line-height:1;animation:offpulse .6s ease-in-out infinite;}
+  .alarm-t{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-top:8px;}
+  .alarm-s{font-size:15px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums;}
+  .alarm-b{display:flex;gap:10px;margin-top:22px;}
+  .alarm-b .btn{flex:1;padding:18px 8px;font-size:16px;}
+  .alarm-in > .btn{width:100%;margin-top:10px;padding:18px 8px;font-size:16px;}
+
+  /* Pågående moment, fast list längst ner */
+  .nowbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;display:none;align-items:center;gap:10px;
+    padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+    background:rgba(20,30,38,.97);border-top:1px solid var(--sea-dim);backdrop-filter:blur(8px);
+  }
+  .nowbar.show{display:flex;}
+  .nb-l{flex:1;min-width:0;}
+  .nb-t{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--sea);font-weight:700;}
+  .nb-n{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nb-c{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--sea);}
+
+  /* Veckan */
   .wday{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px;margin-bottom:9px;}
   .wday.today{border-color:var(--amber-dim);background:linear-gradient(160deg,#1f1c14,var(--surface));}
   .wday h4{margin:0 0 7px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;justify-content:space-between;align-items:center;}
   .wday.today h4{color:var(--amber);}
   .wday h4 .badge{font-size:10px;background:var(--amber);color:#1a130a;padding:2px 8px;border-radius:20px;letter-spacing:.08em;}
-  .wday p{margin:5px 0;font-size:14px;color:var(--text);display:flex;gap:8px;}
-  .wday p::before{content:"–";color:var(--amber-dim);}
-  .wday .em{color:var(--amber);font-weight:600;}
+  .wline{display:flex;justify-content:space-between;gap:10px;margin:6px 0;font-size:14px;}
+  .wline span:first-child{flex:1;}
+  .wline .em{color:var(--amber);font-weight:600;}
+  .wline .wt{color:var(--sea);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .wline .wt.none{color:#566876;font-weight:400;}
+  .wtot{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .wtot b{color:var(--text);}
 
-  .ref{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:14px 16px;}
-  .ref .rg{margin-top:12px;}
-  .ref .rg:first-child{margin-top:0;}
-  .ref .rg h5{margin:0 0 6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;}
-  .ref .rg p{margin:4px 0;font-size:13.5px;color:var(--text);display:flex;gap:8px;}
-  .ref .rg p::before{content:"·";color:var(--amber-dim);font-weight:700;}
-
-  .breakchip{
-    display:none;align-items:center;gap:6px;margin-top:14px;
-    background:var(--raised);border:1px solid var(--line);color:var(--muted);
-    font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:20px;
-    font-variant-numeric:tabular-nums;
-  }
-  .breakchip.now{background:linear-gradient(160deg,#1f1c14,#241d12);border-color:var(--amber-dim);color:var(--amber);}
-
-  .firststep{
-    display:flex;align-items:center;gap:14px;margin-top:22px;padding:15px 16px;
-    background:linear-gradient(160deg,#12211c,#0f1a17);
-    border:1px solid var(--sea-dim);border-radius:16px;cursor:pointer;user-select:none;
-  }
-  .firststep .fs-num{
-    flex:0 0 auto;width:30px;height:30px;border-radius:50%;
-    background:var(--sea);color:#0c1512;font-weight:800;font-size:15px;
-    display:flex;align-items:center;justify-content:center;
-  }
-  .firststep .fs-body{flex:1;}
-  .firststep .fs-label{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--sea);font-weight:700;}
-  .firststep .fs-title{font-size:15.5px;font-weight:600;margin-top:3px;}
-  .firststep .fs-box{
-    flex:0 0 auto;width:24px;height:24px;border-radius:7px;border:2px solid var(--sea-dim);
-    display:flex;align-items:center;justify-content:center;
-  }
-  .firststep .fs-box svg{width:14px;height:14px;opacity:0;transform:scale(.5);transition:opacity .15s,transform .15s;}
-  .firststep.done .fs-box{background:var(--sea);border-color:var(--sea);}
-  .firststep.done .fs-box svg{opacity:1;transform:scale(1);}
-  .firststep.done .fs-title{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--sea-dim);}
-  .firststep.done .fs-num{opacity:.5;}
+  /* Tider */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:6px 16px;}
+  .srow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line);font-size:14px;}
+  .srow:first-child{border-top:none;}
+  .srow .sl{flex:1;min-width:0;}
+  .srow small{display:block;color:var(--muted);font-size:12px;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .srow .sv{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap;}
+  .x{background:none;border:none;color:var(--muted);font-size:20px;line-height:1;padding:4px 0 4px 8px;cursor:pointer;}
+  .empty{padding:14px 0;color:var(--muted);font-size:13.5px;}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
 
   /* Avmönstrings-nedräkning */
   .off{
@@ -206,7 +263,7 @@
   @keyframes conf{to{transform:translateY(110vh) rotate(540deg);opacity:.9;}}
 
   .toast{
-    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);
+    position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(30px);
     background:var(--amber);color:#1a130a;font-weight:700;font-size:14px;
     padding:13px 20px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.5);
     opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:50;max-width:90%;text-align:center;
@@ -223,22 +280,17 @@
 
   <div class="tabbar">
     <button class="tab active" data-tab="idag">Idag</button>
-    <button class="tab" data-tab="vecka">Hela veckan</button>
+    <button class="tab" data-tab="vecka">Veckan</button>
+    <button class="tab" data-tab="tider">Tider</button>
   </div>
 
   <div class="panel active" id="panel-idag">
     <div class="eyebrow">Natskyller · M/S Nordic Crown</div>
-    <div class="shift">Pass <b>17:00–04:30</b> · 2×30 min rast · 10,5 h</div>
+    <div class="shift">Pass <b>17:00–04:30</b></div>
     <div class="dayrow">
       <h1 class="weekday" id="weekday">—</h1>
       <span class="date" id="date"></span>
     </div>
-    <div class="prog">
-      <div class="progbar"><div class="progfill" id="progfill"></div></div>
-      <div class="progtxt" id="progtxt">0 av 0 klara</div>
-    </div>
-
-    <div class="breakchip" id="breakchip"></div>
 
     <div class="off setup" id="off">
       <div class="off-head">
@@ -266,14 +318,9 @@
       </div>
     </div>
 
-    <div class="firststep" id="firststep">
-      <div class="fs-num">1</div>
-      <div class="fs-body">
-        <div class="fs-label">Först när du kommer in</div>
-        <div class="fs-title">Starta tvätten – trasor &amp; textil, däck 1</div>
-      </div>
-      <span class="fs-box"><svg viewBox="0 0 24 24" fill="none" stroke="#0E1419" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>
-    </div>
+    <div class="free" id="free"></div>
+    <div class="pizza" id="pizza"></div>
+    <div class="wash" id="wash"></div>
 
     <section class="sec">
       <div class="deep">
@@ -282,26 +329,75 @@
       </div>
     </section>
 
-    <section class="sec" id="dailywrap"></section>
+    <div id="nightwrap"></div>
 
-    <div style="text-align:center">
-      <button class="reset" id="reset">Nollställ dagens bockar</button>
-    </div>
+    <section class="sec" id="adhocsec">
+      <div class="sec-h">Annat i natt</div>
+      <div class="group" id="adhocgroup" style="display:none"><ul class="tasks" id="adhoclist"></ul></div>
+      <div class="adhoc">
+        <input type="text" id="adhocname" maxlength="60" placeholder="Annat moment, t.ex. hjälpte disken" aria-label="Annat moment">
+        <button class="btn go" id="adhocgo" type="button">Starta</button>
+      </div>
+    </section>
+
+    <div class="sum" id="sum"></div>
+    <div class="lastline">Innan du går: lås dörrarna till kabyssen.</div>
   </div>
 
   <div class="panel" id="panel-vecka">
-    <div class="eyebrow">Veckoöversikt · djupstäd</div>
+    <div class="eyebrow">Veckoöversikt · djupstäd med snittider</div>
     <div class="sec" id="weekwrap" style="margin-top:14px"></div>
-
     <div class="sec">
-      <div class="sec-h">Varje pass – dagligt</div>
-      <div class="ref" id="refwrap"></div>
+      <div class="sec-h">Varje natt</div>
+      <div class="wday" id="weeknightly"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-tider">
+    <div class="eyebrow">Mätningar</div>
+    <div class="sec" style="margin-top:14px">
+      <div class="sec-h">Snitt per moment</div>
+      <div class="card" id="statwrap"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-h">Släppt från disken</div>
+      <div class="card" id="freewrap"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-h">Senaste mätningar</div>
+      <div class="card" id="logwrap"></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="copydata" type="button">Kopiera all data</button>
     </div>
   </div>
 
   <div class="toast" id="toast"></div>
 
-  <footer>Bockarna nollställs automatiskt kl 06:00 varje nytt skiftdygn.</footer>
+  <footer>Tiderna sparas bara i den här telefonen. Nytt skiftdygn börjar kl 06:00.</footer>
+</div>
+
+<div class="alarm" id="alarm" role="alertdialog" aria-label="Pizzalarm">
+  <div class="alarm-in">
+    <div class="alarm-ico">🍕</div>
+    <div class="alarm-t">Pizzalarm</div>
+    <div class="alarm-s" id="alarmsub"></div>
+    <div class="alarm-b">
+      <button class="btn ghost" id="snooze5" type="button">Snooza 5 min</button>
+      <button class="btn ghost" id="snooze10" type="button">Snooza 10 min</button>
+    </div>
+    <button class="btn amber" id="alarmoff" type="button">Klart för i natt</button>
+  </div>
+</div>
+
+<div class="nowbar" id="nowbar">
+  <div class="nb-l">
+    <div class="nb-t">Pågår</div>
+    <div class="nb-n" id="nbname"></div>
+  </div>
+  <span class="nb-c" id="nbclock">0:00</span>
+  <button class="btn ghost sm" id="nbpause" type="button">Paus</button>
+  <button class="btn go sm" id="nbdone" type="button">Klar</button>
 </div>
 
 <script>
@@ -316,165 +412,591 @@ const store = (() => {
     set(k,v){ try { ok ? localStorage.setItem(k,v) : (mem[k]=v); } catch(e){ mem[k]=v; } }
   };
 })();
+function loadJson(key, fallback){
+  try { const v = JSON.parse(store.get(key) || "null"); return v == null ? fallback : v; } catch(e){ return fallback; }
+}
 
 const WEEKDAYS = ["Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag","Söndag"];
 
+// Djupstäd per veckodag. "rooms" delas upp i ett moment per kök, så att varje kök får en egen tid.
+// "k" sätts när samma jobb återkommer flera dagar och ska dela statistik.
 const DEEP = [
-  [ {id:"mo1", t:"Fläktkåpor – KULL · BESÄTTNING · SYD · NORD", n:"Endast invändigt"},
+  [ {id:"mo1", t:"Fläktkåpor", rooms:["KULL","BESÄTTNING","SYD","NORD"], n:"Endast invändigt"},
     {id:"mo2", t:"Avlopp & galler i à la carte-köket", n:"Extra grundligt"} ],
   [ {id:"tu1", t:"Barnbuffé – skåp & väggar i SKAGERAK"},
-    {id:"tu2", t:"Tak – KULL · BESÄTTNING · SKAGERAK"} ],
-  [ {id:"we1", t:"Tak – SYD · NORD"},
-    {id:"we2", t:"Avlopp & galler – SYD · NORD", n:"Extra grundligt"},
-    {id:"we3", t:"Nattmat i mässen"} ],
+    {id:"tu2", t:"Tak", rooms:["KULL","BESÄTTNING","SKAGERAK"]} ],
+  [ {id:"we1", t:"Tak", rooms:["SYD","NORD"]},
+    {id:"we2", t:"Avlopp & galler", rooms:["SYD","NORD"], n:"Extra grundligt"},
+    {id:"we3", k:"nattmat", t:"Nattmat för hela båten", n:"Kör ner värmeskåpen från mässen till köket"} ],
   [ {id:"th1", t:"Avlopp & galler i SKAGERAK-köket", n:"Extra grundligt"} ],
   [ {id:"fr1", t:"Alla kyl- & värmeskåp i SKAGERAK-buffén"},
     {id:"fr2", t:"Ångrengöraren ända in i kanterna", n:"Glöm inte hörnen"} ],
   [ {id:"sa1", t:"Hiss"},
     {id:"sa2", t:"Spillbrickor från utsuget – runda i taket, KULL"},
-    {id:"sa3", t:"Nattmat i mässen"} ],
+    {id:"sa3", k:"nattmat", t:"Nattmat för hela båten", n:"Kör ner värmeskåpen från mässen till köket"} ],
   [ {id:"su1", t:"Filter & fläktkåpor – SKAGERAK", n:"Invändigt, utvändigt & kanter"},
-    {id:"su2", t:"Fläktkåpor – KULL · BESÄTTNING · SYD · NORD", n:"Endast utvändigt & kanter"} ]
+    {id:"su2", t:"Fläktkåpor", rooms:["KULL","BESÄTTNING","SYD","NORD"], n:"Endast utvändigt & kanter"} ]
 ];
 
-const DAILY = [
-  { h:"Löpande ansvar", items:[
-    {id:"d1", t:"Allt porslin & utrustning diskat och klart för kockar/servitörer"},
-    {id:"d2", t:"Disken flyter smärtfritt – gästerna får en bra upplevelse"},
-    {id:"d3", t:"Rent & i ordning runt kabyssen"} ]},
-  { h:"Kväll – till ca 22:00", items:[
-    {id:"d4", t:"Disktrasor, kökshanddukar & textil på däck 1"},
-    {id:"d5", t:"Assistera kollegor med kvällsservice"} ]},
-  { h:"Dagligt", items:[
-    {id:"d6", t:"Skura golv i alla tre kök"},
-    {id:"d7", t:"Städa upp i mässen"},
-    {id:"d8", t:"Tvätta & fyll på trasor/handdukar – däck 1"},
-    {id:"d9", t:"Fyll på i kabyssen"},
-    {id:"d10", t:"Lås dörrarna till kabyssen"} ]},
-  { h:"Innan passet slut", items:[
-    {id:"d11", t:"Tvål-, papper- & lotiondispensrar fyllda i hela kabyssen"} ]}
+function slug(s){ return String(s).toLowerCase().trim().replace(/[^a-z0-9åäö]+/g,"-").replace(/^-|-$/g,""); }
+
+// Varje natt, per kök. Sopningen smygstartas ofta redan under diskpasset.
+const KITCHENS = ["SKAGERAK","KULL","PIZZAN (SYD)"];
+const NIGHT = [
+  { h:"Sopa", items: KITCHENS.map(r => ({ k:"sopa:"+slug(r), t:"Sopa – "+r })) },
+  { h:"Skura golv", items: KITCHENS.map(r => ({ k:"skura:"+slug(r), t:"Skura golv – "+r })) },
+  { h:"Övrigt varje natt", items: [
+    {k:"n2", t:"Stänga mässen"},
+    {k:"n3", t:"Fyll på i kabyssen"},
+    {k:"n4", t:"Tvål-, papper- & lotiondispensrar i kabyssen"} ] },
+  { h:"Sist på natten", items: [
+    {k:"s1", t:"Lägg in tvätten & släng trasor"},
+    {k:"s2", t:"Släng nattmaten i grisen"} ] }
 ];
+const NIGHT_ALL = NIGHT.reduce((a,g) => a.concat(g.items), []);
+function dayItems(i){
+  const out = [];
+  DEEP[i].forEach(it => {
+    if (it.rooms) it.rooms.forEach(r => out.push({ k:(it.k||it.id)+":"+slug(r), t:it.t+" – "+r, n:it.n }));
+    else out.push({ k:it.k||it.id, t:it.t, n:it.n });
+  });
+  return out;
+}
 
 const CUTOFF_HOUR = 6;
-const realNow = new Date();
-const now = new Date(realNow.getTime() - CUTOFF_HOUR*60*60*1000);
-const isoDate = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
-const STKEY = "natskyll:"+isoDate;
+function shiftIso(ms){
+  const d = new Date(ms - CUTOFF_HOUR*3600*1000);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+const now = new Date(Date.now() - CUTOFF_HOUR*3600*1000);
+const isoDate = shiftIso(Date.now());
 const wd = (now.getDay()+6)%7;
-const WASH_ID = "wash";
 
-let checked = {};
-try { checked = JSON.parse(store.get(STKEY) || "{}") || {}; } catch(e){ checked = {}; }
-function save(){ store.set(STKEY, JSON.stringify(checked)); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function hhmm(ms){ const d = new Date(ms); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+function fmtClock(ms){
+  const s = Math.max(0, Math.floor(ms/1000)), h = Math.floor(s/3600), m = Math.floor(s%3600/60), ss = s%60;
+  return h ? h+":"+pad(m)+":"+pad(ss) : m+":"+pad(ss);
+}
+function fmtDur(ms){
+  if (ms < 60000) return Math.max(1, Math.round(ms/1000))+" s";
+  const min = Math.round(ms/60000);
+  if (min < 60) return min+" min";
+  const h = Math.floor(min/60), mm = min%60;
+  return h+" h"+(mm ? " "+mm+" min" : "");
+}
+function el(tag, cls, text){
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function buzz(p){ if (navigator.vibrate){ try { navigator.vibrate(p); } catch(e){} } }
+function showToast(msg, ms){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), ms || 5000);
+  t.onclick = () => t.classList.remove("show");
+}
 
-const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#0E1419" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+// Klockslag inom ett skiftdygn: före 06:00 hör till dagen efter skiftdatumet.
+function shiftTimeMs(t, iso){
+  const [y,m,d] = (iso || isoDate).split("-").map(Number), [hh,mm] = t.split(":").map(Number);
+  return new Date(y, m-1, d + (hh < CUTOFF_HOUR ? 1 : 0), hh, mm).getTime();
+}
+function shiftEndMs(iso){ return shiftTimeMs("04:30", iso); }
+
+// ---------- Släppt från disken ----------
+const FKEY = "natskyll:free";
+let free = loadJson(FKEY, {});
+if (!free || typeof free !== "object" || Array.isArray(free)) free = {};
+function saveFree(){ store.set(FKEY, JSON.stringify(free)); }
+
+// ---------- Tidtagning ----------
+const SKEY = "natskyll:sessions", RKEY = "natskyll:run";
+let sessions = loadJson(SKEY, []);
+if (!Array.isArray(sessions)) sessions = [];
+let run = loadJson(RKEY, {});
+if (!run || typeof run !== "object" || Array.isArray(run)) run = {};
+function saveS(){ store.set(SKEY, JSON.stringify(sessions)); }
+function saveR(){ store.set(RKEY, JSON.stringify(run)); }
+
+function elapsed(r){ return r.acc + (r.at ? Date.now() - r.at : 0); }
+function runningKey(){ return Object.keys(run).find(k => run[k].at) || null; }
+function pauseRun(k){ const r = run[k]; if (r && r.at){ r.acc += Date.now() - r.at; r.at = null; } }
+
+function startTask(k, t){
+  const other = runningKey();
+  if (other && other !== k){ pauseRun(other); showToast("Pausade: " + run[other].t); }
+  if (run[k]) { if (!run[k].at) run[k].at = Date.now(); }
+  else run[k] = { t, start: Date.now(), acc: 0, at: Date.now() };
+  buzz(40); saveR(); renderAll();
+}
+function pauseTask(k){ pauseRun(k); saveR(); renderAll(); }
+function discardTask(k){
+  const r = run[k]; if (!r) return;
+  if (!confirm("Släng mätningen av \"" + r.t + "\"?")) return;
+  delete run[k]; saveR(); renderAll();
+}
+function finishTask(k){
+  const r = run[k]; if (!r) return;
+  const ms = elapsed(r), end = Date.now();
+  if (ms < 5000){ delete run[k]; saveR(); renderAll(); showToast("Under 5 sekunder – sparades inte"); return; }
+  if (ms > 3*3600*1000 && !confirm(fmtDur(ms) + " på \"" + r.t + "\". Stämmer det? Avbryt slänger mätningen.")){
+    delete run[k]; saveR(); renderAll(); return;
+  }
+  sessions.push({ id: end + "-" + Math.floor(Math.random()*1e6), k, t: r.t, d: shiftIso(r.start), s: r.start, e: end, ms });
+  delete run[k]; saveS(); saveR(); buzz([60,60,60]); renderAll();
+  showToast("Sparat: " + r.t + " · " + fmtDur(ms));
+}
+function removeSession(id){
+  if (!confirm("Ta bort mätningen?")) return;
+  sessions = sessions.filter(s => s.id !== id); saveS(); renderAll();
+}
+
+function stats(k){
+  const xs = sessions.filter(s => s.k === k);
+  if (!xs.length) return { n:0 };
+  const ms = xs.map(s => s.ms), sum = ms.reduce((a,b) => a+b, 0);
+  return { n: xs.length, avg: sum/xs.length, min: Math.min(...ms), max: Math.max(...ms) };
+}
+function tonight(k){
+  const xs = sessions.filter(s => s.d === isoDate && (k == null || s.k === k));
+  return { n: xs.length, sum: xs.reduce((a,s) => a + s.ms, 0) };
+}
+
+function statLine(k){
+  const st = el("span","tstat"), tn = tonight(k), s = stats(k);
+  if (tn.n){ st.appendChild(el("b", null, "✓ " + fmtDur(tn.sum) + " i natt")); }
+  if (s.n){
+    st.appendChild(document.createTextNode((tn.n ? " · " : "") + "snitt " + fmtDur(s.avg) + " · " + s.n + (s.n === 1 ? " mätning" : " mätningar")));
+  }
+  if (!tn.n && !s.n) st.textContent = "inte mätt än";
+  return st;
+}
 
 function taskRow(item){
-  const li = document.createElement("li");
-  li.className = "task" + (checked[item.id] ? " done":"");
-  li.innerHTML =
-    '<span class="box">'+CHECK_SVG+'</span>'+
-    '<span class="label">'+item.t+(item.n?'<span class="note">'+item.n+'</span>':'')+'</span>';
-  li.addEventListener("click", () => { checked[item.id]=!checked[item.id]; li.classList.toggle("done",!!checked[item.id]); save(); updateProgress(); });
+  const r = run[item.k];
+  const li = el("li", "trow" + (r ? (r.at ? " running" : " paused") : ""));
+  const top = el("div","trow-top");
+  const lab = el("span","label");
+  lab.appendChild(document.createTextNode(item.t));
+  if (item.n) lab.appendChild(el("span","note",item.n));
+  lab.appendChild(statLine(item.k));
+  const ctl = el("div","tctl");
+  if (!r){
+    const b = el("button","btn go sm","Starta"); b.type = "button";
+    b.addEventListener("click", () => startTask(item.k, item.t));
+    ctl.appendChild(b);
+  } else {
+    const c = el("span","clock",fmtClock(elapsed(r))); c.dataset.clock = item.k;
+    const x = el("button","btn ghost sm","Släng"); x.type = "button";
+    x.addEventListener("click", () => discardTask(item.k));
+    const p = el("button","btn ghost sm", r.at ? "Paus" : "Fortsätt"); p.type = "button";
+    p.addEventListener("click", () => r.at ? pauseTask(item.k) : startTask(item.k, item.t));
+    const d = el("button","btn go sm","Klar"); d.type = "button";
+    d.addEventListener("click", () => finishTask(item.k));
+    ctl.append(c, x, p, d);
+  }
+  top.append(lab, ctl); li.appendChild(top);
   return li;
 }
 
-function buildDeep(){
-  const list = document.getElementById("deeplist"); list.innerHTML = "";
-  DEEP[wd].forEach(it => list.appendChild(taskRow(it)));
+function adhocItems(){
+  const seen = {}, out = [];
+  Object.keys(run).filter(k => k.startsWith("x:")).forEach(k => { seen[k] = 1; out.push({ k, t: run[k].t }); });
+  sessions.filter(s => s.d === isoDate && s.k.startsWith("x:")).forEach(s => { if (!seen[s.k]){ seen[s.k] = 1; out.push({ k: s.k, t: s.t }); } });
+  return out;
 }
 
-function buildDaily(){
-  const wrap = document.getElementById("dailywrap");
-  wrap.innerHTML = '<div class="sec-h">Dagligt – varje pass</div>';
-  DAILY.forEach(g => {
-    const gh = document.createElement("div"); gh.className = "sec-h"; gh.style.marginTop="16px"; gh.textContent=g.h;
-    const box = document.createElement("div"); box.className="group";
-    const ul = document.createElement("ul"); ul.className="tasks";
+function renderToday(){
+  const deep = document.getElementById("deeplist"); deep.innerHTML = "";
+  dayItems(wd).forEach(it => deep.appendChild(taskRow(it)));
+  const nw = document.getElementById("nightwrap"); nw.innerHTML = "";
+  NIGHT.forEach(g => {
+    const sec = el("section","sec"), grp = el("div","group"), ul = el("ul","tasks");
     g.items.forEach(it => ul.appendChild(taskRow(it)));
-    box.appendChild(ul); wrap.appendChild(gh); wrap.appendChild(box);
+    grp.appendChild(ul); sec.append(el("div","sec-h",g.h), grp); nw.appendChild(sec);
   });
+  const ad = adhocItems(), adl = document.getElementById("adhoclist"); adl.innerHTML = "";
+  ad.forEach(it => adl.appendChild(taskRow(it)));
+  document.getElementById("adhocgroup").style.display = ad.length ? "" : "none";
+  const tn = tonight(null), sum = document.getElementById("sum");
+  sum.innerHTML = "";
+  if (tn.n){
+    sum.appendChild(document.createTextNode("I natt: "));
+    sum.appendChild(el("b", null, tn.n + (tn.n === 1 ? " mätning" : " mätningar") + " · " + fmtDur(tn.sum)));
+    const f = free[isoDate];
+    if (f){
+      const pre = sessions.filter(s => s.d === isoDate && s.s < f).reduce((a,s) => a + s.ms, 0);
+      if (pre) sum.appendChild(document.createTextNode(" · varav " + fmtDur(pre) + " före släppt"));
+    }
+  } else sum.textContent = "Inga mätningar i natt än. Tryck Starta när du börjar ett moment.";
 }
 
-function allIds(){ return [WASH_ID, ...DEEP[wd].map(x=>x.id), ...DAILY.flatMap(g=>g.items.map(x=>x.id))]; }
-function updateProgress(){
-  const ids = allIds(); const done = ids.filter(id=>checked[id]).length;
-  const pct = ids.length ? Math.round(done/ids.length*100) : 0;
-  document.getElementById("progfill").style.width = pct+"%";
-  document.getElementById("progtxt").textContent = done+" av "+ids.length+" klara";
+function weekLine(it){
+  const row = el("div","wline"), left = el("span");
+  left.appendChild(document.createTextNode(it.t + " "));
+  if (it.n) left.appendChild(el("span","em",it.n));
+  const s = stats(it.k);
+  row.append(left, el("span", "wt" + (s.n ? "" : " none"), s.n ? fmtDur(s.avg) : "–"));
+  return row;
 }
-
-function buildWeek(){
+function weekTotal(items){
+  let sum = 0, n = 0;
+  items.forEach(it => { const s = stats(it.k); if (s.n){ sum += s.avg; n++; } });
+  const t = el("div","wtot");
+  if (!n) t.textContent = "Inga mätningar än";
+  else { t.appendChild(document.createTextNode("Snitt totalt: ")); t.appendChild(el("b", null, fmtDur(sum))); t.appendChild(document.createTextNode(" · " + n + " av " + items.length + " moment mätta")); }
+  return t;
+}
+function renderWeek(){
   const wrap = document.getElementById("weekwrap"); wrap.innerHTML = "";
-  WEEKDAYS.forEach((name,i) => {
-    const d = document.createElement("div"); d.className = "wday" + (i===wd ? " today":"");
-    let html = '<h4>'+name+(i===wd?'<span class="badge">idag</span>':'')+'</h4>';
-    DEEP[i].forEach(it => { html += '<p>'+it.t+(it.n?' <span class="em">'+it.n+'</span>':'')+'</p>'; });
-    d.innerHTML = html; wrap.appendChild(d);
+  WEEKDAYS.forEach((name, i) => {
+    const d = el("div", "wday" + (i === wd ? " today" : "")), h = el("h4", null, name);
+    if (i === wd) h.appendChild(el("span","badge","idag"));
+    d.appendChild(h);
+    const items = dayItems(i);
+    items.forEach(it => d.appendChild(weekLine(it)));
+    d.appendChild(weekTotal(items));
+    wrap.appendChild(d);
+  });
+  const wn = document.getElementById("weeknightly"); wn.innerHTML = "";
+  NIGHT_ALL.forEach(it => wn.appendChild(weekLine(it)));
+  wn.appendChild(weekTotal(NIGHT_ALL));
+}
+
+function renderTimes(){
+  const sw = document.getElementById("statwrap"); sw.innerHTML = "";
+  const byKey = {};
+  sessions.forEach(s => { (byKey[s.k] = byKey[s.k] || { k: s.k, t: s.t }).t = s.t; });
+  const rows = Object.values(byKey).map(o => Object.assign(o, stats(o.k))).sort((a,b) => b.avg - a.avg);
+  if (!rows.length) sw.appendChild(el("div","empty","Inga mätningar än."));
+  rows.forEach(o => {
+    const r = el("div","srow"), l = el("div","sl");
+    l.appendChild(document.createTextNode(o.t));
+    l.appendChild(el("small", null, o.n + (o.n === 1 ? " mätning" : " mätningar") + (o.n > 1 ? " · " + fmtDur(o.min) + "–" + fmtDur(o.max) : "")));
+    r.append(l, el("span","sv",fmtDur(o.avg)));
+    sw.appendChild(r);
+  });
+  const fw = document.getElementById("freewrap"); fw.innerHTML = "";
+  const fdays = Object.keys(free).sort().reverse();
+  if (!fdays.length) fw.appendChild(el("div","empty","Tryck \"Släppt nu\" på Idag-fliken när disken släpper dig."));
+  else {
+    const offs = fdays.map(d => free[d] - shiftTimeMs("17:00", d));
+    const avg = offs.reduce((a,b) => a+b, 0) / offs.length;
+    const r = el("div","srow"), l = el("div","sl");
+    l.appendChild(document.createTextNode("Snitt"));
+    l.appendChild(el("small", null, fdays.length + (fdays.length === 1 ? " natt" : " nätter")));
+    r.append(l, el("span","sv",hhmm(shiftTimeMs("17:00", isoDate) + avg)));
+    fw.appendChild(r);
+    fdays.slice(0, 14).forEach(d => {
+      const row = el("div","srow"), left = el("div","sl");
+      left.appendChild(document.createTextNode(d === isoDate ? "I natt" : d));
+      left.appendChild(el("small", null, fmtDur(shiftEndMs(d) - free[d]) + " nattjobb till 04:30"));
+      row.append(left, el("span","sv",hhmm(free[d])));
+      fw.appendChild(row);
+    });
+  }
+  const lw = document.getElementById("logwrap"); lw.innerHTML = "";
+  const last = sessions.slice().sort((a,b) => b.e - a.e).slice(0, 30);
+  if (!last.length) lw.appendChild(el("div","empty","Här hamnar varje mätning när du trycker Klar."));
+  last.forEach(s => {
+    const r = el("div","srow"), l = el("div","sl");
+    l.appendChild(document.createTextNode(s.t));
+    l.appendChild(el("small", null, (s.d === isoDate ? "i natt" : s.d) + " · " + hhmm(s.s) + "–" + hhmm(s.e)));
+    const x = el("button","x","×"); x.type = "button"; x.setAttribute("aria-label","Ta bort mätningen");
+    x.addEventListener("click", () => removeSession(s.id));
+    r.append(l, el("span","sv",fmtDur(s.ms)), x);
+    lw.appendChild(r);
   });
 }
 
-function buildRef(){
-  const wrap = document.getElementById("refwrap"); wrap.innerHTML = "";
-  DAILY.forEach(g => {
-    const rg = document.createElement("div"); rg.className="rg";
-    let html = '<h5>'+g.h+'</h5>';
-    g.items.forEach(it => { html += '<p>'+it.t+'</p>'; });
-    rg.innerHTML = html; wrap.appendChild(rg);
+function renderNow(){
+  const k = runningKey(), bar = document.getElementById("nowbar");
+  bar.classList.toggle("show", !!k);
+  if (k){
+    document.getElementById("nbname").textContent = run[k].t;
+    document.getElementById("nbclock").textContent = fmtClock(elapsed(run[k]));
+  }
+}
+function tickClocks(){
+  document.querySelectorAll("[data-clock]").forEach(c => { const r = run[c.dataset.clock]; if (r) c.textContent = fmtClock(elapsed(r)); });
+  const k = runningKey();
+  if (k) document.getElementById("nbclock").textContent = fmtClock(elapsed(run[k]));
+}
+function renderAll(){ renderToday(); renderWeek(); renderTimes(); renderNow(); }
+
+document.getElementById("nbpause").addEventListener("click", () => { const k = runningKey(); if (k) pauseTask(k); });
+document.getElementById("nbdone").addEventListener("click", () => { const k = runningKey(); if (k) finishTask(k); });
+
+function startAdhoc(){
+  const inp = document.getElementById("adhocname"), name = inp.value.trim().replace(/\s+/g," ");
+  if (!name){ inp.focus(); return; }
+  inp.value = ""; inp.blur();
+  startTask("x:" + slug(name), name.charAt(0).toUpperCase() + name.slice(1));
+}
+document.getElementById("adhocgo").addEventListener("click", startAdhoc);
+document.getElementById("adhocname").addEventListener("keydown", e => { if (e.key === "Enter") startAdhoc(); });
+
+document.getElementById("copydata").addEventListener("click", () => {
+  if (!sessions.length && !Object.keys(free).length){ showToast("Inga mätningar att kopiera än"); return; }
+  const lines = ["datum;moment;start;slut;minuter"];
+  sessions.slice().sort((a,b) => a.s - b.s).forEach(s => {
+    lines.push([s.d, s.t.replace(/;/g,","), hhmm(s.s), hhmm(s.e), (s.ms/60000).toFixed(1).replace(".",",")].join(";"));
   });
+  Object.keys(free).sort().forEach(d => lines.push([d, "Släppt från disken", hhmm(free[d]), "", ""].join(";")));
+  const text = lines.join("\n");
+  const done = () => showToast("Kopierat: " + sessions.length + " mätningar. Klistra in där du vill ha dem.");
+  const fallback = () => {
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch(e){ showToast("Kunde inte kopiera"); }
+    ta.remove();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+  else fallback();
+});
+
+// ---------- Tvättklocka ----------
+const WKEY = "natskyll:wash", WCFG = "natskyll:washcfg";
+let wash = loadJson(WKEY, null);
+let washCfg = Object.assign({ wash: 45, dry: 60 }, loadJson(WCFG, {}));
+const washEl = document.getElementById("wash");
+const STAGE = { wash: { label: "Tvätt", going: "Tvätten går", done: "Tvätten är klar" }, dry: { label: "Tork", going: "Torken går", done: "Torken är klar" } };
+function saveWash(){ store.set(WKEY, JSON.stringify(wash)); }
+function washEnd(){ return wash.start + wash.mins*60000; }
+function clampMins(v, fallback){ const n = Math.round(Number(v)); return n >= 1 && n <= 600 ? n : fallback; }
+function startWash(stage, mins){
+  wash = { stage, start: Date.now(), mins, alerted: false };
+  washCfg[stage] = mins; store.set(WCFG, JSON.stringify(washCfg));
+  saveWash(); buzz(60); renderWash();
+}
+function stopWash(){ wash = null; saveWash(); renderWash(); }
+function minsField(id, val){
+  const w = el("label","mins"), i = document.createElement("input");
+  i.type = "number"; i.inputMode = "numeric"; i.min = "1"; i.max = "600"; i.value = val; i.id = id;
+  i.setAttribute("aria-label","Minuter");
+  w.append(i, document.createTextNode("min"));
+  return w;
+}
+function renderWash(){
+  washEl.innerHTML = "";
+  if (!wash){
+    washEl.className = "wash";
+    washEl.appendChild(el("div","wash-label","Tvättklocka · däck 1"));
+    washEl.appendChild(el("div","wash-title","Trasor, handdukar & textil"));
+    const r1 = el("div","wash-row"), b1 = el("button","btn go","Starta tvätt"); b1.type = "button";
+    b1.addEventListener("click", () => startWash("wash", clampMins(document.getElementById("washmins").value, washCfg.wash)));
+    r1.append(b1, minsField("washmins", washCfg.wash));
+    const r2 = el("div","wash-row"), b2 = el("button","btn ghost","Starta tork"); b2.type = "button";
+    b2.addEventListener("click", () => startWash("dry", clampMins(document.getElementById("drymins").value, washCfg.dry)));
+    r2.append(b2, minsField("drymins", washCfg.dry));
+    washEl.append(r1, r2);
+    return;
+  }
+  const s = STAGE[wash.stage], left = washEnd() - Date.now(), due = left <= 0;
+  washEl.className = "wash" + (due ? " due" : "");
+  washEl.appendChild(el("div","wash-label", due ? s.done : s.going));
+  const time = el("div","wash-time", due ? "Klar" : fmtClock(left)); time.id = "washtime";
+  const sub = el("div","wash-sub"); sub.id = "washsub";
+  sub.textContent = due ? "sedan " + fmtDur(-left) + " · klar " + hhmm(washEnd()) : "klar ca " + hhmm(washEnd()) + " · startad " + hhmm(wash.start);
+  washEl.append(time, sub);
+  const row = el("div","wash-row");
+  if (due && wash.stage === "wash"){
+    const b = el("button","btn amber","Starta tork"); b.type = "button";
+    b.addEventListener("click", () => startWash("dry", clampMins(document.getElementById("drymins").value, washCfg.dry)));
+    row.append(b, minsField("drymins", washCfg.dry));
+  }
+  const c = el("button","btn ghost", due ? "Stäng" : "Avbryt"); c.type = "button";
+  c.addEventListener("click", () => { if (due || confirm("Avbryta " + s.label.toLowerCase() + "klockan?")) stopWash(); });
+  row.appendChild(c);
+  washEl.appendChild(row);
+}
+function tickWash(){
+  if (!wash) return;
+  const left = washEnd() - Date.now(), due = left <= 0;
+  if (due && !wash.alerted){
+    wash.alerted = true; saveWash();
+    buzz([300,150,300,150,300]);
+    showToast("🧺 " + STAGE[wash.stage].done + " – däck 1", 20000);
+    renderWash(); return;
+  }
+  if (due !== washEl.classList.contains("due")){ renderWash(); return; }
+  const t = document.getElementById("washtime"), sub = document.getElementById("washsub");
+  if (t && !due) t.textContent = fmtClock(left);
+  if (sub && due) sub.textContent = "sedan " + fmtDur(-left) + " · klar " + hhmm(washEnd());
 }
 
+// ---------- Släppt från disken (kort på Idag) ----------
+const freeEl = document.getElementById("free");
+let freeEdit = false;
+function freeTexts(){
+  const f = free[isoDate], t = Date.now(), end = shiftEndMs();
+  return {
+    big: fmtDur(Math.max(0, Math.min(t, end) - f)),
+    sub: "bara nattjobb · " + (t < end ? fmtDur(end - t) + " kvar till 04:30" : "passet slut 04:30")
+  };
+}
+function renderFree(){
+  const f = free[isoDate];
+  freeEl.innerHTML = "";
+  freeEl.className = "free" + (f ? " on" : "");
+  if (freeEdit){
+    freeEl.appendChild(el("div","free-label","Släppt från disken kl"));
+    const row = el("div","free-row"), inp = document.createElement("input");
+    inp.type = "time"; inp.className = "timein"; inp.value = hhmm(f || Date.now()); inp.setAttribute("aria-label","Klockslag");
+    const save = el("button","btn go sm","Spara"); save.type = "button";
+    save.addEventListener("click", () => {
+      if (inp.value){ free[isoDate] = shiftTimeMs(inp.value); saveFree(); }
+      freeEdit = false; renderAll(); renderFree();
+    });
+    const del = el("button","btn ghost sm","Ta bort"); del.type = "button";
+    del.addEventListener("click", () => { delete free[isoDate]; saveFree(); freeEdit = false; renderAll(); renderFree(); });
+    row.append(inp, save, del); freeEl.appendChild(row);
+    return;
+  }
+  if (!f){
+    freeEl.appendChild(el("div","free-label","Diskpasset"));
+    const row = el("div","free-row");
+    row.appendChild(el("div","free-txt","Tryck när disken släpper dig och natten är din."));
+    const b = el("button","btn go","Släppt nu"); b.type = "button";
+    b.addEventListener("click", () => { free[isoDate] = Date.now(); saveFree(); buzz(60); renderAll(); renderFree(); });
+    row.appendChild(b); freeEl.appendChild(row);
+    return;
+  }
+  const tx = freeTexts();
+  freeEl.appendChild(el("div","free-label","Släppt från disken " + hhmm(f)));
+  const row = el("div","free-row"), left = el("div","free-txt");
+  const big = el("div","free-big",tx.big); big.id = "freebig";
+  const sub = el("div","free-sub",tx.sub); sub.id = "freesub";
+  left.append(big, sub);
+  const e = el("button","btn ghost sm","Ändra"); e.type = "button";
+  e.addEventListener("click", () => { freeEdit = true; renderFree(); });
+  row.append(left, e); freeEl.appendChild(row);
+}
+function tickFree(){
+  if (!free[isoDate] || freeEdit) return;
+  const b = document.getElementById("freebig"), s = document.getElementById("freesub");
+  if (!b || !s) return;
+  const tx = freeTexts(); b.textContent = tx.big; s.textContent = tx.sub;
+}
+
+// ---------- Pizzalarm ----------
+// Påslaget gäller det varje natt tills det stängs av. "ack" = kvitterat för det skiftdygnet.
+const PKEY = "natskyll:pizza";
+let pizza = Object.assign({ on:false, time:"02:00", ack:null, snooze:0 }, loadJson(PKEY, {}));
+const pizzaEl = document.getElementById("pizza"), alarmEl = document.getElementById("alarm");
+let ringing = false, ringTest = false, ringTimer = null, actx = null;
+function savePizza(){ store.set(PKEY, JSON.stringify(pizza)); }
+function unlockAudio(){
+  try {
+    if (!actx){ const C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); }
+    if (actx && actx.state === "suspended") actx.resume();
+  } catch(e){}
+}
+document.addEventListener("pointerdown", unlockAudio, { passive:true });
+function beep(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    [0, .2, .4, .6].forEach((o, i) => {
+      const osc = actx.createOscillator(), g = actx.createGain();
+      osc.type = "square"; osc.frequency.value = i % 2 ? 1320 : 990;
+      g.gain.setValueAtTime(0.0001, t+o);
+      g.gain.exponentialRampToValueAtTime(0.6, t+o+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+o+0.17);
+      osc.connect(g); g.connect(actx.destination);
+      osc.start(t+o); osc.stop(t+o+0.19);
+    });
+  } catch(e){}
+}
+function startRing(test){
+  ringing = true; ringTest = !!test;
+  const late = !test && !pizza.snooze && Date.now() - shiftTimeMs(pizza.time) > 90000;
+  document.getElementById("alarmsub").textContent = test ? "Så här ser och låter det" :
+    (late ? "Skulle ha ringt " + pizza.time + " – klockan är " + hhmm(Date.now()) : "Klockan är " + hhmm(Date.now()));
+  alarmEl.classList.add("show");
+  unlockAudio(); beep(); buzz([500,200,500,200,500]);
+  clearInterval(ringTimer);
+  ringTimer = setInterval(() => { beep(); buzz([500,200,500]); }, 1100);
+  if (!test && document.hidden && "Notification" in window && Notification.permission === "granted" && navigator.serviceWorker){
+    navigator.serviceWorker.ready.then(r => r.showNotification("🍕 Pizzalarm", {
+      body: "Klockan är " + hhmm(Date.now()), tag: "pizza", renotify: true, requireInteraction: true,
+      vibrate: [500,200,500,200,500], icon: "icon-192.png"
+    })).catch(() => {});
+  }
+}
+function stopRing(){
+  ringing = false; clearInterval(ringTimer); ringTimer = null;
+  alarmEl.classList.remove("show"); buzz(0);
+}
+function snoozePizza(min){
+  if (!ringTest){ pizza.snooze = Date.now() + min*60000; savePizza(); showToast("Snoozat – ringer igen " + hhmm(pizza.snooze)); }
+  stopRing(); renderPizza();
+}
+document.getElementById("snooze5").addEventListener("click", () => snoozePizza(5));
+document.getElementById("snooze10").addEventListener("click", () => snoozePizza(10));
+document.getElementById("alarmoff").addEventListener("click", () => {
+  if (!ringTest){ pizza.ack = isoDate; pizza.snooze = 0; savePizza(); }
+  stopRing(); renderPizza();
+});
+function renderPizza(){
+  pizzaEl.innerHTML = "";
+  pizzaEl.className = "pizza" + (pizza.on ? " on" : "");
+  const row = el("div","pizza-row");
+  row.appendChild(el("div","pizza-t","🍕 Pizzalarm"));
+  const ti = document.createElement("input");
+  ti.type = "time"; ti.className = "timein"; ti.value = pizza.time; ti.setAttribute("aria-label","Klockslag för pizzalarm");
+  ti.addEventListener("change", () => { if (ti.value){ pizza.time = ti.value; pizza.ack = null; pizza.snooze = 0; savePizza(); renderPizza(); } });
+  const sw = el("label","sw"), cb = document.createElement("input");
+  cb.type = "checkbox"; cb.checked = pizza.on; cb.setAttribute("aria-label","Pizzalarm på eller av");
+  cb.addEventListener("change", () => {
+    pizza.on = cb.checked; pizza.snooze = 0;
+    // Slås det på efter klockslaget räknas natten som klar, så att det inte ringer direkt.
+    pizza.ack = pizza.on && Date.now() >= shiftTimeMs(pizza.time) ? isoDate : null;
+    savePizza();
+    if (pizza.on){
+      unlockAudio(); buzz(60);
+      if ("Notification" in window && Notification.permission === "default"){ try { Notification.requestPermission(); } catch(e){} }
+    } else if (ringing) stopRing();
+    renderPizza();
+  });
+  sw.append(cb, el("span"));
+  row.append(ti, sw); pizzaEl.appendChild(row);
+  const sub = el("div","pizza-sub");
+  let txt = "Av";
+  if (pizza.on){
+    if (pizza.ack === isoDate) txt = "Klart för i natt · ringer igen i morgon natt " + pizza.time;
+    else if (pizza.snooze > Date.now()) txt = "Snoozat till " + hhmm(pizza.snooze);
+    else txt = "På varje natt " + pizza.time + " tills du stänger av";
+  }
+  sub.appendChild(document.createTextNode(txt));
+  const test = el("button", null, "Testa signal"); test.type = "button";
+  test.addEventListener("click", () => startRing(true));
+  sub.appendChild(test);
+  pizzaEl.appendChild(sub);
+}
+function tickPizza(){
+  if (!pizza.on || ringing) return;
+  const t = Date.now(), at = shiftTimeMs(pizza.time);
+  if (t < at || pizza.ack === isoDate || t < pizza.snooze) return;
+  if (t > Math.max(shiftEndMs(), at + 3600000)) return;
+  startRing(false); renderPizza();
+}
+
+// ---------- Start ----------
 document.getElementById("weekday").textContent = WEEKDAYS[wd];
 document.getElementById("date").textContent = now.toLocaleDateString("sv-SE",{day:"numeric",month:"long"});
-buildDeep(); buildDaily(); buildWeek(); buildRef(); updateProgress();
-
-// First step: starta tvätt (+ vibration)
-const fsEl = document.getElementById("firststep");
-function renderFs(){ fsEl.classList.toggle("done", !!checked[WASH_ID]); }
-fsEl.addEventListener("click", () => {
-  checked[WASH_ID] = !checked[WASH_ID];
-  renderFs(); save(); updateProgress();
-  if (checked[WASH_ID] && navigator.vibrate) { try{ navigator.vibrate(60); }catch(e){} }
+renderAll(); renderWash(); renderFree(); renderPizza(); tickPizza();
+setInterval(() => { tickClocks(); tickWash(); tickFree(); tickPizza(); }, 1000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  if (shiftIso(Date.now()) !== isoDate){ location.reload(); return; }
+  tickClocks(); tickWash(); tickFree(); tickPizza();
 });
-renderFs();
 
-// Rast-påminnelse (fungerar när appen är öppen)
-const BREAKS = [{ start:"18:40", end:"19:10", label:"Rast" }];
-const chip = document.getElementById("breakchip");
-const fired = {};
-function todayAt(hhmm){ const [h,m]=hhmm.split(":").map(Number); const d=new Date(); d.setHours(h,m,0,0); return d; }
-function fmtLeft(ms){ const min=Math.round(ms/60000); if(min<60) return "om "+min+" min"; const h=Math.floor(min/60), mm=min%60; return "om "+h+" h"+(mm?" "+mm+" min":""); }
-function showToast(msg){
-  const t=document.getElementById("toast");
-  t.textContent=msg; t.classList.add("show");
-  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"), 20000);
-  t.onclick=()=>t.classList.remove("show");
-}
-function fireBreak(b){
-  if(navigator.vibrate){ try{ navigator.vibrate([250,120,250,120,250]); }catch(e){} }
-  showToast("☕ Dags för rast – "+b.start);
-}
-function updateBreak(){
-  const t=new Date(); let shown=false;
-  for(const b of BREAKS){
-    const s=todayAt(b.start), e=todayAt(b.end);
-    if(t>=s && t<e){
-      chip.style.display="inline-flex"; chip.className="breakchip now";
-      chip.textContent="☕ "+b.label+" nu · till "+b.end; shown=true;
-      if(!fired[b.start]){ fired[b.start]=true; fireBreak(b); }
-    } else if(t<s){
-      chip.style.display="inline-flex"; chip.className="breakchip";
-      chip.textContent=b.label+" "+b.start+" · "+fmtLeft(s-t); shown=true;
-    }
-  }
-  if(!shown) chip.style.display="none";
-}
-updateBreak();
-setInterval(updateBreak, 20000);
-BREAKS.forEach(b=>{ const ms=todayAt(b.start)-new Date(); if(ms>0 && ms<13*3600*1000){ setTimeout(updateBreak, ms+800); } });
-document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) updateBreak(); });
-
-// Nedräkning till avmönstring
+// ---------- Nedräkning till avmönstring ----------
 const OFFKEY = "natskyll:off";
 const offEl = document.getElementById("off");
 // Ombord-perioder ur kalendern "Ombord" [påmönstring, avmönstring]. Avmönstring räknas kl 10:30.
@@ -609,12 +1131,6 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.getElementById("panel-"+btn.dataset.tab).classList.add("active");
     window.scrollTo(0,0);
   });
-});
-
-document.getElementById("reset").addEventListener("click", () => {
-  checked = {}; save();
-  document.querySelectorAll(".task.done").forEach(el => el.classList.remove("done"));
-  updateProgress();
 });
 
 if ("serviceWorker" in navigator) {
