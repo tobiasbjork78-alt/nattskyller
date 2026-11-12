@@ -44,12 +44,85 @@ final class Store {
         return new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date(ms));
     }
 
+    /** Nattens alla avläsningar ligger också kvar i telefonen, så att appen kan räkna tid per kök direkt. */
+    private static File night(Context c, String shift) {
+        return new File(c.getApplicationContext().getFilesDir(), "night-" + shift + ".jsonl");
+    }
+
     static void append(Context c, String line) {
+        byte[] bytes = (line + "\n").getBytes(StandardCharsets.UTF_8);
         synchronized (LOCK) {
             try (FileOutputStream out = new FileOutputStream(pending(c), true)) {
-                out.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                out.write(bytes);
             } catch (Exception ignored) {
             }
+            try (FileOutputStream out = new FileOutputStream(night(c, shiftDate(System.currentTimeMillis())), true)) {
+                out.write(bytes);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** Raderna från och med nummer "from" för ett skiftdygn, som JSON: {"n":antal totalt,"rows":[...]}. */
+    static String rows(Context c, String shift, int from) {
+        if (shift == null || !shift.matches("\\d{4}-\\d{2}-\\d{2}")) return "{\"n\":0,\"rows\":[]}";
+        StringBuilder sb = new StringBuilder(4096);
+        int n = 0;
+        boolean first = true;
+        synchronized (LOCK) {
+            File f = night(c, shift);
+            if (f.exists()) {
+                try (java.io.BufferedReader br = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        line = line.trim();
+                        if (line.isEmpty() || line.charAt(0) != '{' || line.charAt(line.length() - 1) != '}') continue;
+                        if (n >= from) {
+                            if (!first) sb.append(',');
+                            sb.append(line);
+                            first = false;
+                        }
+                        n++;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return "{\"n\":" + n + ",\"rows\":[" + sb + "]}";
+    }
+
+    /** Tar bort nattfiler som är äldre än fyra dygn. */
+    static void cleanNights(Context c) {
+        File[] fs = c.getApplicationContext().getFilesDir().listFiles();
+        if (fs == null) return;
+        long old = System.currentTimeMillis() - 4L * 24 * 3600_000L;
+        for (File f : fs) {
+            if (f.getName().startsWith("night-") && f.lastModified() < old) f.delete();
+        }
+    }
+
+    // ---------- Händelser från aviseringar (larm kvitterat, Klar/Paus) som sidan hämtar när den är framme ----------
+    private static final Object EVLOCK = new Object();
+
+    static void pushEvent(Context c, JSONObject ev) {
+        synchronized (EVLOCK) {
+            SharedPreferences p = prefs(c);
+            try {
+                org.json.JSONArray arr = new org.json.JSONArray(p.getString("events", "[]"));
+                arr.put(ev);
+                p.edit().putString("events", arr.toString()).commit();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    static String takeEvents(Context c) {
+        synchronized (EVLOCK) {
+            SharedPreferences p = prefs(c);
+            String s = p.getString("events", "[]");
+            if (!"[]".equals(s)) p.edit().putString("events", "[]").commit();
+            return s;
         }
     }
 

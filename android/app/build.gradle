@@ -13,7 +13,14 @@ android {
         minSdk 26
         targetSdk 34
         versionCode buildNo
-        versionName "0.1." + buildNo
+        versionName "0.2." + buildNo
+    }
+
+    // Nattskyller-sidan (samma filer som webbversionen) följer med inbyggd i appen.
+    sourceSets {
+        main {
+            assets.srcDirs = ['../../nattskyller']
+        }
     }
 
     // Hobbyapp som bara installeras från det här arkivets egna utgåvor. Nyckeln ligger i arkivet

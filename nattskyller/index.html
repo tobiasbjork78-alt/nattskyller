@@ -443,6 +443,19 @@ const store = (() => {
     set(k,v){ try { ok ? localStorage.setItem(k,v) : (mem[k]=v); } catch(e){ mem[k]=v; } }
   };
 })();
+// ---------- Riktiga appen ----------
+// Samma sida visas i Android-appen. Där finns bryggan window.Natt, som ger det en webbsida inte får göra:
+// larm som ringer med släckt skärm, wifi-loggen direkt ur telefonen och knappar på låsskärmen.
+// På webben finns ingen brygga, och då fungerar allt som förut.
+const APP = (() => { try { return window.Natt && typeof window.Natt.version === "function" && window.Natt.version() >= 1 ? window.Natt : null; } catch(e){ return null; } })();
+function app(fn){
+  if (!APP) return undefined;
+  try { return APP[fn].apply(APP, Array.prototype.slice.call(arguments, 1)); } catch(e){ return undefined; }
+}
+function appJson(fn, fallback){
+  try { const r = app.apply(null, [fn].concat(Array.prototype.slice.call(arguments, 2))); return r ? JSON.parse(r) : fallback; } catch(e){ return fallback; }
+}
+
 function loadJson(key, fallback){
   try { const v = JSON.parse(store.get(key) || "null"); return v == null ? fallback : v; } catch(e){ return fallback; }
 }
@@ -879,8 +892,10 @@ function startWash(stage, mins){
   wash = { stage, start: Date.now(), mins, alerted: false };
   washCfg[stage] = mins; store.set(WCFG, JSON.stringify(washCfg));
   unlockAudio(); saveWash(); buzz(60); renderWash();
+  app("stopRing", "tvatt");
+  app("setAlarm", "tvatt", String(washEnd()), "tvatt", "🧺 " + STAGE[stage].done, "Däck 1", "0");
 }
-function stopWash(){ wash = null; saveWash(); renderWash(); }
+function stopWash(){ wash = null; saveWash(); renderWash(); app("cancelAlarm", "tvatt"); app("stopRing", "tvatt"); }
 function minsField(id, val){
   const w = el("label","mins"), i = document.createElement("input");
   i.type = "number"; i.inputMode = "numeric"; i.min = "1"; i.max = "600"; i.value = val; i.id = id;
@@ -918,7 +933,7 @@ function renderWash(){
   }
   if (due && !wash.muted){
     const m = el("button","btn ghost","Tysta"); m.type = "button";
-    m.addEventListener("click", () => { wash.muted = true; saveWash(); renderWash(); });
+    m.addEventListener("click", () => { wash.muted = true; saveWash(); renderWash(); app("stopRing", "tvatt"); });
     row.appendChild(m);
   }
   const c = el("button","btn ghost", due ? "Stäng" : "Avbryt"); c.type = "button";
@@ -931,9 +946,9 @@ function tickWash(){
   const left = washEnd() - Date.now(), due = left <= 0;
   if (due && !wash.alerted){
     wash.alerted = true; saveWash();
-    buzz([300,150,300,150,300]); lastChime = Date.now(); chime();
+    if (!APP){ buzz([300,150,300,150,300]); lastChime = Date.now(); chime(); }
     showToast("🧺 " + STAGE[wash.stage].done + " – däck 1", 20000);
-    if (document.hidden && "Notification" in window && Notification.permission === "granted" && navigator.serviceWorker){
+    if (!APP && document.hidden && "Notification" in window && Notification.permission === "granted" && navigator.serviceWorker){
       navigator.serviceWorker.ready.then(r => r.showNotification("🧺 " + STAGE[wash.stage].done, {
         body: "Däck 1 · klar " + hhmm(washEnd()), tag: "wash", vibrate: [300,150,300], icon: "icon-192.png"
       })).catch(() => {});
@@ -941,7 +956,7 @@ function tickWash(){
     renderWash(); return;
   }
   // Mjuk påminnelse var 12:e sekund i högst fem minuter, tills den tystas eller stängs.
-  if (due && !wash.muted && -left < 5*60000 && Date.now() - lastChime >= 12000){ lastChime = Date.now(); chime(); buzz(120); }
+  if (!APP && due && !wash.muted && -left < 5*60000 && Date.now() - lastChime >= 12000){ lastChime = Date.now(); chime(); buzz(120); }
   if (due !== washEl.classList.contains("due")){ renderWash(); return; }
   const t = document.getElementById("washtime"), sub = document.getElementById("washsub");
   if (t && !due) t.textContent = fmtClock(left);
@@ -952,6 +967,8 @@ function tickWash(){
 // En fil per natt (data/ÅÅÅÅ-MM-DD.json) i ett privat arkiv. Nyckeln ligger bara i telefonen, aldrig i koden.
 const GKEY = "natskyll:gh", GSYNC = "natskyll:ghsync", GLAST = "natskyll:ghlast";
 let gh = loadJson(GKEY, null);
+// I appen är arkiv och nyckel redan inlagda för wifi-loggen; använd dem i stället för att fråga igen.
+if (!gh && APP){ const g = appJson("gh", null); if (g && g.token){ gh = { repo: g.repo, token: g.token }; store.set(GKEY, JSON.stringify(gh)); } }
 let ghSync = loadJson(GSYNC, {});
 if (!ghSync || typeof ghSync !== "object" || Array.isArray(ghSync)) ghSync = {};
 const ghState = { busy:false, err:"", last: Number(store.get(GLAST) || 0) };
@@ -1006,6 +1023,36 @@ async function ghSyncNow(manual){
     if (manual) showToast("Sparat till GitHub");
   } catch(e){ ghState.err = e && /^\d+$/.test(e.message) ? e.message : "nät"; }
   ghState.busy = false; renderGh();
+}
+// Läs tillbaka tidigare nätter från arkivet, t.ex. till en ny telefon eller från webben till appen.
+async function ghRestore(){
+  if (!gh || ghState.busy) return;
+  ghState.busy = true; renderGh();
+  let n = 0;
+  try {
+    const l = await ghApi("/contents/data");
+    if (l.status !== 404){
+      if (!l.ok) throw new Error(String(l.status));
+      const files = (await l.json()).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f.name));
+      for (const f of files){
+        const r = await ghRaw("/contents/data/" + f.name);
+        if (!r.ok) throw new Error(String(r.status));
+        const j = await r.json(), d = j.datum;
+        if (!d) continue;
+        if (j.slapptMs && !free[d]){ free[d] = j.slapptMs; n++; }
+        (j.matningar || []).forEach(m => {
+          if (!m.startMs || !m.slutMs || !m.nyckel) return;
+          if (sessions.some(x => x.k === m.nyckel && Math.abs(x.s - m.startMs) < 2000)) return;
+          const o = { id: "b:" + m.startMs + ":" + m.nyckel, k: m.nyckel, t: m.moment, d, s: m.startMs, e: m.slutMs, ms: Math.round((m.minuter || 0) * 60000) };
+          if (m.wifi) o.auto = 1;
+          sessions.push(o); n++;
+        });
+      }
+    }
+    saveS(); saveFree(); ghState.err = "";
+    showToast(n ? "Hämtade " + n + " poster från backupen" : "Inget nytt i backupen");
+  } catch(e){ ghState.err = e && /^\d+$/.test(e.message) ? e.message : "nät"; }
+  ghState.busy = false; renderAll(); renderFree();
 }
 function scheduleSync(){
   if (!gh) return;
@@ -1082,7 +1129,9 @@ function renderGh(){
   now.addEventListener("click", () => ghSyncNow(true));
   const ed = el("button","btn ghost sm","Ändra"); ed.type = "button";
   ed.addEventListener("click", () => { ghEdit = true; renderGh(); });
-  act.append(now, ed); w.appendChild(act);
+  const back = el("button","btn ghost sm","Hämta från backupen"); back.type = "button";
+  back.addEventListener("click", () => ghRestore());
+  act.append(now, ed, back); w.appendChild(act);
 }
 window.addEventListener("online", () => ghSyncNow(false));
 
@@ -1194,20 +1243,36 @@ function wifiApply(){
 function ghRaw(path){
   return ghApi(path, { headers: { Authorization: "Bearer " + gh.token, Accept: "application/vnd.github.raw+json", "X-GitHub-Api-Version": "2022-11-28" } });
 }
+async function wifiRules(force){
+  if (!force && wifi.rules && Date.now() - (wifi.rulesAt || 0) < 6*3600*1000) return;
+  const r = await ghRaw("/contents/regler.json");
+  if (r.status === 404) throw new Error("regler");
+  if (!r.ok) throw new Error(String(r.status));
+  const R = await r.json();
+  if (!wifi.rules || wifi.rules.v !== R.v){ wifi.files = {}; wifi.pts = []; wifi.n = 0; }
+  wifi.rules = R; wifi.rulesAt = Date.now();
+}
 async function wifiSync(manual){
   if (!wifiCfg.on || !gh || !gh.token || !gh.repo || wifiState.busy) return;
-  if (!manual && Date.now() - (wifi.at || 0) < 120000) return;
-  if (navigator.onLine === false){ wifiState.err = "nät"; renderWifi(); return; }
+  if (!manual && Date.now() - (wifi.at || 0) < (APP ? 25000 : 120000)) return;
+  if (!APP && navigator.onLine === false){ wifiState.err = "nät"; renderWifi(); return; }
   wifiState.busy = true; renderWifi();
   try {
-    if (manual || !wifi.rules || Date.now() - (wifi.rulesAt || 0) > 6*3600*1000){
-      const r = await ghRaw("/contents/regler.json");
-      if (r.status === 404) throw new Error("regler");
-      if (!r.ok) throw new Error(String(r.status));
-      const R = await r.json();
-      if (!wifi.rules || wifi.rules.v !== R.v){ wifi.files = {}; wifi.pts = []; }
-      wifi.rules = R; wifi.rulesAt = Date.now();
+    if (APP){
+      // Reglerna hämtas från arkivet (och sparas), avläsningarna direkt ur telefonen. Utan nät duger sparade regler.
+      try { await wifiRules(manual); } catch(e){ if (!wifi.rules) throw e; }
+      const P = wifiPrep(wifi.rules);
+      const res = appJson("rows", null, isoDate, wifi.n || 0);
+      if (res && res.rows){
+        res.rows.forEach(o => { if (o && o.t) wifi.pts.push([o.t, wifiClass(o.a, P)]); });
+        wifi.n = res.n;
+        wifi.pts.sort((a,b) => a[0] - b[0]);
+      }
+      wifi.at = Date.now(); wifiState.err = ""; saveWifi();
+      if (manual) showToast("Wifi-loggen läst");
+      wifiState.busy = false; renderAll(); return;
     }
+    await wifiRules(manual);
     const P = wifiPrep(wifi.rules);
     const l = await ghApi("/contents/wifi/" + isoDate);
     if (l.status !== 404){
@@ -1242,6 +1307,21 @@ function renderWifi(){
     wifiCfg.on = !wifiCfg.on; store.set(WFCFG, JSON.stringify(wifiCfg));
     renderAll(); if (wifiCfg.on) wifiSync(true);
   });
+  if (APP){
+    // Loggningen sköts av appen: visa läget och låt den startas och stoppas härifrån.
+    const st = appJson("status", {}), lp = el("p"), la = el("div","actions");
+    lp.appendChild(el("b", null, st.logging ? "Loggar" : "Loggningen är av"));
+    if (st.logging || st.scans) lp.appendChild(document.createTextNode(" · " + (st.scans || 0) + " avläsningar i natt" + (st.lastScan ? ", senast " + hhmm(st.lastScan) : "")));
+    w.appendChild(lp);
+    if (st.lastErr) w.appendChild(el("p","err", st.lastErr));
+    if (st.exact === false) w.appendChild(el("p","err","Appen får inte ställa exakta larm. Slå på \"Alarm och påminnelser\" för Nattskyller i telefonens inställningar, annars kan larmen bli sena."));
+    const lb = el("button","btn " + (st.logging ? "ghost" : "go") + " sm", st.logging ? "Stoppa loggning" : "Starta loggning"); lb.type = "button";
+    lb.addEventListener("click", () => app(st.logging ? "logStop" : "logStart"));
+    const ls = el("button","btn ghost sm","Inställningar"); ls.type = "button";
+    ls.addEventListener("click", () => app("openSettings"));
+    la.append(lb, ls); w.appendChild(la);
+    w.appendChild(el("p", null, " "));
+  }
   if (!wifiCfg.on){
     w.appendChild(el("p", null, "Av. Köken mäts bara när du trycker Starta."));
     act.appendChild(tog); w.appendChild(act); return;
@@ -1251,11 +1331,11 @@ function renderWifi(){
     act.appendChild(tog); w.appendChild(act); return;
   }
   const p = el("p"), auto = sessions.filter(s => s.auto && s.d === isoDate);
-  p.appendChild(el("b", null, "På"));
+  p.appendChild(el("b", null, APP ? "Räknar tid i köken" : "På"));
   let txt = " · ";
   if (wifiState.busy) txt += "hämtar …";
   else if (!wifi.at) txt += "inte hämtad än";
-  else txt += wifi.pts.length + " avläsningar i natt · hämtad " + hhmm(wifi.at);
+  else txt += wifi.pts.length + " avläsningar i natt · " + (APP ? "läst " : "hämtad ") + hhmm(wifi.at);
   p.appendChild(document.createTextNode(txt));
   w.appendChild(p);
   if (wifiState.err && !wifiState.busy) w.appendChild(el("p","err", wifiState.err === "regler" ? "Hittar inte regler.json i arkivet." : ghErrText(wifiState.err)));
@@ -1265,7 +1345,7 @@ function renderWifi(){
     auto.forEach(s => { by[s.t] = (by[s.t] || 0) + s.ms; });
     w.appendChild(el("p", null, "I natt från loggen: " + Object.keys(by).map(t => t.replace("Golv – ","") + " " + fmtDur(by[t])).join(" · ")));
   } else if (wifi.at) w.appendChild(el("p", null, "Inget köksbesök på minst 3 minuter efter " + hhmm(free[isoDate]) + " än."));
-  const now = el("button","btn go sm","Hämta nu"); now.type = "button";
+  const now = el("button","btn go sm", APP ? "Läs nu" : "Hämta nu"); now.type = "button";
   now.addEventListener("click", () => wifiSync(true));
   act.append(now, tog); w.appendChild(act);
 }
@@ -1333,7 +1413,17 @@ const PKEY = "natskyll:pizza";
 let pizza = Object.assign({ on:false, time:"02:00", ack:null, snooze:0 }, loadJson(PKEY, {}));
 const pizzaEl = document.getElementById("pizza"), alarmEl = document.getElementById("alarm");
 let ringing = false, ringTest = false, ringTimer = null, actx = null;
-function savePizza(){ store.set(PKEY, JSON.stringify(pizza)); }
+function savePizza(){ store.set(PKEY, JSON.stringify(pizza)); pizzaNative(); }
+// I appen ställs ett riktigt larm: nästa ringning (snooze eller ordinarie tid) och ordinarie tid därefter.
+function pizzaNative(){
+  if (!APP) return;
+  if (!pizza.on){ app("cancelAlarm", "pizza"); return; }
+  const t = Date.now(), day = 24*3600*1000;
+  let reg = shiftTimeMs(pizza.time);
+  if (pizza.ack === isoDate || t >= reg) reg += day;   // klart för i natt eller redan passerat: nästa natt
+  const sn = pizza.snooze > t;
+  app("setAlarm", "pizza", String(sn ? pizza.snooze : reg), "pizza", "🍕 Pizzalarm", "Dags för pizzan", String(sn ? reg : reg + day));
+}
 function unlockAudio(){
   try {
     if (!actx){ const C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); }
@@ -1362,9 +1452,12 @@ function startRing(test){
   document.getElementById("alarmsub").textContent = test ? "Så här ser och låter det" :
     (late ? "Skulle ha ringt " + pizza.time + " – klockan är " + hhmm(Date.now()) : "Klockan är " + hhmm(Date.now()));
   alarmEl.classList.add("show");
-  unlockAudio(); beep(); buzz([500,200,500,200,500]);
   clearInterval(ringTimer);
-  ringTimer = setInterval(() => { beep(); buzz([500,200,500]); }, 1100);
+  // I appen står det riktiga larmet för ljudet; här visas bara rutan.
+  if (!APP || test){
+    unlockAudio(); beep(); buzz([500,200,500,200,500]);
+    ringTimer = setInterval(() => { beep(); buzz([500,200,500]); }, 1100);
+  }
   if (!test && document.hidden && "Notification" in window && Notification.permission === "granted" && navigator.serviceWorker){
     navigator.serviceWorker.ready.then(r => r.showNotification("🍕 Pizzalarm", {
       body: "Klockan är " + hhmm(Date.now()), tag: "pizza", renotify: true, requireInteraction: true,
@@ -1373,6 +1466,7 @@ function startRing(test){
   }
 }
 function stopRing(){
+  if (APP && !ringTest) app("stopRing", "pizza");
   ringing = false; clearInterval(ringTimer); ringTimer = null;
   alarmEl.classList.remove("show"); buzz(0);
 }
@@ -1418,7 +1512,12 @@ function renderPizza(){
   }
   sub.appendChild(document.createTextNode(txt));
   const test = el("button", null, "Testa signal"); test.type = "button";
-  test.addEventListener("click", () => startRing(true));
+  test.addEventListener("click", () => {
+    if (!APP){ startRing(true); return; }
+    // I appen provas det riktiga larmet, så att det går att släcka skärmen och höra att det ringer ändå.
+    app("setAlarm", "pizzatest", String(Date.now() + 10000), "pizza", "🍕 Pizzalarm (test)", "Så här låter det", "0");
+    showToast("Larmet ringer om 10 sekunder. Släck gärna skärmen och lyssna. Stäng av det i aviseringen.", 9000);
+  });
   sub.appendChild(test);
   pizzaEl.appendChild(sub);
 }
@@ -1440,7 +1539,7 @@ function askNotify(){
   } catch(e){}
 }
 function syncRunNote(force){
-  if (!("serviceWorker" in navigator) || !("Notification" in window) || Notification.permission !== "granted") return;
+  if (!APP && (!("serviceWorker" in navigator) || !("Notification" in window) || Notification.permission !== "granted")) return;
   let k = runningKey(), paused = false;
   if (!k){
     const ps = Object.keys(run).sort((a,b) => (run[b].pa || 0) - (run[a].pa || 0));
@@ -1449,6 +1548,10 @@ function syncRunNote(force){
   const state = k ? k + "|" + paused : "";
   if (!force && state === noteState) return;
   noteState = state;
+  if (APP){
+    if (k && run[k]) app("runNote", k, run[k].t, paused); else app("clearRunNote");
+    return;
+  }
   navigator.serviceWorker.ready.then(reg => {
     if (!k) return reg.getNotifications({ tag: "run" }).then(ns => ns.forEach(n => n.close()));
     const r = run[k]; if (!r) return;
@@ -1468,23 +1571,46 @@ function applyPending(){
     const res = await c.match(url); if (!res) return;
     let list = []; try { list = await res.json(); } catch(e){}
     await c.delete(url);
-    let n = 0, last = "";
-    list.forEach(x => {
-      const r = run[x.k]; if (!r) return;
-      if (x.a === "paus"){ if (r.at){ r.acc += Math.max(0, x.t - r.at); r.at = null; r.pa = x.t; n++; } }
-      else if (x.a === "fortsatt"){ if (!r.at){ const o = runningKey(); if (o && o !== x.k) pauseRun(o); r.at = x.t; n++; } }
-      else if (x.a === "klar"){
-        const ms = r.acc + (r.at ? Math.max(0, x.t - r.at) : 0);
-        if (ms >= 5000){
-          sessions.push({ id: x.t + "-" + Math.floor(Math.random()*1e6), k: x.k, t: r.t, d: shiftIso(r.start), s: r.start, e: x.t, ms });
-          last = r.t + " · " + fmtDur(ms);
-        }
-        delete run[x.k]; n++;
-      }
-    });
-    if (n){ saveS(); saveR(); renderAll(); if (last) showToast("Sparat från aviseringen: " + last); }
+    applyActions(list);
   }).catch(() => {});
 }
+// Tryck på Klar/Paus/Fortsätt i aviseringen: [{k, a, t}] där t är klockslaget för trycket.
+function applyActions(list){
+  let n = 0, last = "";
+  (list || []).forEach(x => {
+    const r = run[x.k]; if (!r) return;
+    if (x.a === "paus"){ if (r.at){ r.acc += Math.max(0, x.t - r.at); r.at = null; r.pa = x.t; n++; } }
+    else if (x.a === "fortsatt"){ if (!r.at){ const o = runningKey(); if (o && o !== x.k) pauseRun(o); r.at = x.t; n++; } }
+    else if (x.a === "klar"){
+      const ms = r.acc + (r.at ? Math.max(0, x.t - r.at) : 0);
+      if (ms >= 5000){
+        sessions.push({ id: x.t + "-" + Math.floor(Math.random()*1e6), k: x.k, t: r.t, d: shiftIso(r.start), s: r.start, e: x.t, ms });
+        last = r.t + " · " + fmtDur(ms);
+      }
+      delete run[x.k]; n++;
+    }
+  });
+  if (n){ saveS(); saveR(); renderAll(); if (last) showToast("Sparat från aviseringen: " + last); }
+}
+// I appen: hämta det som hänt i aviseringarna sedan sist (larm stängt eller snoozat, Klar/Paus på ett moment).
+function applyNative(){
+  if (!APP) return;
+  const evs = appJson("takeEvents", []);
+  if (!evs || !evs.length) return;
+  const runs = [];
+  evs.forEach(ev => {
+    if (ev.id === "run") runs.push({ k: ev.k, a: ev.a, t: ev.t });
+    else if (ev.id === "pizza"){
+      if (ev.a === "ack"){ pizza.ack = shiftIso(ev.t); pizza.snooze = 0; }
+      else if (ev.a === "snooze"){ pizza.snooze = ev.until; }
+      savePizza(); ringing = false; clearInterval(ringTimer); ringTimer = null; alarmEl.classList.remove("show"); renderPizza();
+    }
+    else if (ev.id === "tvatt" && wash){ wash.muted = true; wash.alerted = true; saveWash(); renderWash(); }
+  });
+  if (runs.length){ noteState = ""; applyActions(runs); }
+}
+// Appen anropar den här när den kommer fram och när något har hänt i en avisering.
+window.nattResume = () => { applyNative(); tickPizza(); tickWash(); syncRunNote(true); renderWifi(); wifiSync(false); };
 if ("serviceWorker" in navigator){
   navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.type === "run-action") applyPending(); });
 }
@@ -1492,10 +1618,17 @@ if ("serviceWorker" in navigator){
 // ---------- Start ----------
 document.getElementById("weekday").textContent = WEEKDAYS[wd];
 document.getElementById("date").textContent = now.toLocaleDateString("sv-SE",{day:"numeric",month:"long"});
+applyNative();
 renderAll(); renderWash(); renderFree(); renderPizza(); renderGh(); tickPizza(); applyPending();
 setInterval(() => { tickClocks(); tickWash(); tickFree(); tickPizza(); }, 1000);
 wifiSync(false);
-setInterval(() => { if (!document.hidden) wifiSync(false); }, 5*60*1000);
+setInterval(() => { if (!document.hidden) wifiSync(false); }, APP ? 30*1000 : 5*60*1000);
+if (APP){
+  // Lägg larmen rätt efter det som står sparat här, och hämta det som hänt i aviseringarna var tredje sekund.
+  pizzaNative();
+  if (wash && washEnd() > Date.now()) app("setAlarm", "tvatt", String(washEnd()), "tvatt", "🧺 " + STAGE[wash.stage].done, "Däck 1", "0");
+  setInterval(() => { if (!document.hidden) applyNative(); }, 3000);
+}
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   if (shiftIso(Date.now()) !== isoDate){ location.reload(); return; }
@@ -1639,7 +1772,7 @@ document.querySelectorAll(".tab").forEach(btn => {
   });
 });
 
-if ("serviceWorker" in navigator) {
+if (!APP && "serviceWorker" in navigator) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(()=>{}); });
 }
 </script>

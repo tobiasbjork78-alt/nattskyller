@@ -108,6 +108,7 @@ public class LogService extends Service {
             wakeLock.acquire(13L * 3600_000L);
 
             stopAt = nextFiveAm();
+            Store.cleanNights(this);
             Store.prefs(this).edit().putBoolean("running", true).putLong("startedAt", System.currentTimeMillis()).apply();
             handler.post(scanTick);
             handler.postDelayed(uploadTick, UPLOAD_MS);
@@ -148,9 +149,9 @@ public class LogService extends Service {
     }
 
     private Notification buildNotification() {
-        PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pi = PendingIntent.getActivity(this, 0, new Intent(this, WebActivity.class), PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL)
-                .setContentTitle("Nattlogg loggar wifi")
+                .setContentTitle("Nattskyller loggar wifi")
                 .setContentText("Stängs av själv kl 05:00")
                 .setSmallIcon(R.drawable.ic_stat)
                 .setOngoing(true)

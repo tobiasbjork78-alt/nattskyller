@@ -1,10 +1,11 @@
-name: Bygg Nattlogg
+name: Bygg Nattskyller-appen
 
 on:
   push:
     branches: [main]
     paths:
       - "android/**"
+      - "nattskyller/**"
       - ".github/workflows/android.yml"
   workflow_dispatch:
 
@@ -44,8 +45,8 @@ jobs:
         run: |
           cp android/app/build/outputs/apk/release/app-release.apk nattlogg.apk
           gh release create "nattlogg-${{ github.run_number }}" nattlogg.apk \
-            --title "Nattlogg 0.1.${{ github.run_number }}" \
-            --notes "Wifi-loggaren till Nattskyller. Ladda ner nattlogg.apk och installera." \
+            --title "Nattskyller-appen 0.2.${{ github.run_number }}" \
+            --notes "Nattskyller som riktig app: sidan, larmen och wifi-loggen i ett. Ladda ner nattlogg.apk och installera över den gamla." \
             --latest
 
       # Byggloggen läggs på grenen ci-out så att den går att läsa via git.

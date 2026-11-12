@@ -25,7 +25,7 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
-/** En enda skärm: läge, starta/stoppa, skicka nu och inställning av arkiv och nyckel. */
+/** Inställningsskärmen för wifi-loggen: läge, starta/stoppa, skicka nu, arkiv och nyckel. Nås från Nattskyller-sidan. */
 public class MainActivity extends Activity {
     private static final int REQ = 7;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -76,8 +76,8 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(20), dp(20), dp(40));
 
-        root.addView(label("Nattlogg", 28, 0xFFE8EDF1));
-        TextView sub = label("Loggar vilka wifi-sändare telefonen hör, så att Claude kan räkna ut vilket kök du är i.", 14, 0xFF8A9BA8);
+        root.addView(label("Wifi-loggen", 28, 0xFFE8EDF1));
+        TextView sub = label("Inställningar för loggen: arkiv, nyckel och start/stopp. Gå tillbaka för att komma till Nattskyller.", 14, 0xFF8A9BA8);
         sub.setPadding(0, 0, 0, 0);
         root.addView(sub);
 
@@ -91,6 +91,8 @@ public class MainActivity extends Activity {
             public void onClick(View v) {
                 if (Store.prefs(MainActivity.this).getBoolean("running", false)) {
                     stopService(new Intent(MainActivity.this, LogService.class));
+                    // Stoppad för hand: starta inte själv igen i natt.
+                    Store.prefs(MainActivity.this).edit().putString("autoOff", Store.shiftDate(System.currentTimeMillis())).apply();
                     toast("Loggningen stoppad");
                     handler.postDelayed(new Runnable() {
                         @Override
@@ -232,6 +234,7 @@ public class MainActivity extends Activity {
                 return;
             }
         }
+        Store.prefs(this).edit().putString("autoOff", "").apply();
         startForegroundService(new Intent(this, LogService.class));
         toast("Loggningen är igång");
         handler.postDelayed(new Runnable() {
