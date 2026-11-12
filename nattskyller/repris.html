@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Natten i repris</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* En enda värld: båten i genomskärning en natt till sjöss. Skeppet överst som huvudsak, tidslinjen som loggbok under, siffrorna sist. */
+  :root{
+    color-scheme: dark;
+    --deep:#0A1322;      /* natthav, sidans botten */
+    --chart:#101D31;     /* scenens yta */
+    --line:#22385A;      /* skrovets linjer och ramar */
+    --ink:#E8EEF6;       /* text */
+    --mute:#8498B3;      /* dämpad text */
+    --moon:#F2B95A;      /* du: gubben, spelknappen */
+    --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+    --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--deep);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;}
+  body{padding:20px 16px 40px;}
+  main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px;}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);}
+  h1{font-family:var(--display);font-weight:800;font-size:44px;line-height:.95;margin:4px 0 8px;letter-spacing:.01em;text-transform:uppercase;text-wrap:balance;}
+  .lede{color:var(--mute);font-size:15px;margin:0;max-width:60ch;}
+  .back{display:inline-block;color:var(--mute);font-size:14px;text-decoration:none;margin-bottom:14px;padding:4px 0;}
+  .back:focus-visible, .nights a:focus-visible{outline:2px solid var(--moon);outline-offset:2px;}
+  .nights{display:flex;gap:6px;overflow-x:auto;padding:12px 0 2px;scrollbar-width:none;}
+  .nights a{flex:0 0 auto;color:var(--ink);text-decoration:none;font-size:14px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;white-space:nowrap;}
+  .nights a[aria-current="true"]{border-color:var(--moon);color:var(--moon);}
+  main[data-state="wait"] .stage, main[data-state="wait"] #lock, main[data-state="wait"] .note{display:none;}
+  .stage{background:var(--chart);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+  .now{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:14px 16px 8px;}
+  .clock{font-family:var(--display);font-weight:800;font-size:52px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.02em;white-space:nowrap;}
+  .clock small{font-family:var(--body);font-weight:400;font-size:14px;color:var(--mute);letter-spacing:0;margin-right:6px;}
+  .where{text-align:right;min-width:0;}
+  .where b{display:block;font-family:var(--display);font-weight:600;font-size:22px;line-height:1.08;text-transform:uppercase;letter-spacing:.04em;text-wrap:balance;}
+  #map{display:block;width:100%;aspect-ratio:1/0.92;}
+  .strip{padding:0 12px 6px;}
+  #tl{display:block;width:100%;height:58px;touch-action:none;cursor:pointer;}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 12px 14px;}
+  button{font:inherit;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;padding:9px 16px;cursor:pointer;}
+  button:focus-visible{outline:2px solid var(--moon);outline-offset:2px;}
+  #play{background:var(--moon);border-color:var(--moon);color:#1A1305;font-weight:600;min-width:104px;}
+  .speed{display:flex;gap:6px;align-items:center;width:100%;}
+  .speed span{font-size:12px;color:var(--mute);margin-right:2px;}
+  .speed button{padding:7px 12px;font-size:14px;}
+  button[aria-pressed="true"]{border-color:var(--moon);color:var(--moon);}
+  h2{font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:.06em;text-transform:uppercase;margin:6px 0 2px;}
+  .rows{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none;}
+  .row{display:grid;grid-template-columns:minmax(0,9.5em) 1fr 6.4em;gap:10px;align-items:center;font-size:15px;}
+  .row .nm{display:flex;align-items:center;gap:8px;min-width:0;}
+  .row .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;}
+  .row .bar{height:8px;background:#172740;border-radius:4px;overflow:hidden;}
+  .row .bar i{display:block;height:100%;border-radius:4px;width:0;}
+  .row .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;}
+  .found{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none;}
+  .found li{border:1px dashed var(--line);border-radius:12px;padding:12px 14px;}
+  .found b{font-weight:600;}
+  .found p{margin:4px 0 0;color:var(--mute);font-size:14px;}
+  .note{color:var(--mute);font-size:13px;margin:0;max-width:62ch;}
+  #locked{display:flex;flex-direction:column;gap:18px;}
+  #locked[hidden]{display:none;}
+  #relock{align-self:flex-start;}
+  .lock{display:flex;flex-direction:column;gap:10px;border:1px dashed var(--line);border-radius:12px;padding:14px;}
+  .lock label{color:var(--mute);font-size:14px;}
+  .lockrow{display:flex;gap:8px;align-items:center;}
+  .lock input{font:inherit;font-size:18px;letter-spacing:.3em;width:8.5em;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:#0C1728;color:var(--ink);}
+  .lock input:focus-visible{outline:2px solid var(--moon);outline-offset:2px;}
+  #lockmsg{margin:0;font-size:14px;color:var(--moon);min-height:1.3em;}
+  @media (max-width:380px){ h1{font-size:38px;} .clock{font-size:44px;} .row{grid-template-columns:minmax(0,8em) 1fr 6em;} }
+</style>
+</head>
+<body>
+<main data-state="wait">
+  <header>
+    <a class="back" href="index.html">‹ Tillbaka till Nattskyller</a>
+    <div class="eyebrow" id="eyebrow">Natten i repris</div>
+    <h1>Natten i repris</h1>
+    <p class="lede" id="lede">Läser natten …</p>
+    <nav class="nights" id="nights" aria-label="Välj natt"></nav>
+  </header>
+
+  <section class="stage" aria-label="Båten och tidslinjen">
+    <div class="now">
+      <div class="clock"><small>ca</small><span id="clock">17:50</span></div>
+      <div class="where"><b id="where">Skagerak</b></div>
+    </div>
+    <canvas id="map" role="img" aria-label="Båten i genomskärning från sidan, med en gubbe i svarta arbetskläder som visar var du var och vad du gjorde"></canvas>
+    <div class="strip"><canvas id="tl" role="slider" aria-label="Tidslinje. Dra för att spola." tabindex="0"></canvas></div>
+    <div class="controls">
+      <button id="play" type="button">Spela upp</button>
+      <button id="restart" type="button">Från början</button>
+      <button id="zoom" type="button" aria-pressed="false">Hela båten</button>
+      <button id="kristian" type="button" aria-pressed="false">Kristian mode</button>
+      <div class="speed" role="group" aria-label="Hur lång reprisen är"><span>Längd</span>
+        <button type="button" data-len="30" aria-pressed="false">30 s</button>
+        <button type="button" data-len="90" aria-pressed="false">90 s</button>
+        <button type="button" data-len="300" aria-pressed="true">5 min</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="lock" aria-label="Låsta tider">
+    <h2>Tider</h2>
+    <form class="lock" id="lockform" autocomplete="off">
+      <label for="code">Sammanställningen är låst. Skriv koden för att visa den.</label>
+      <div class="lockrow">
+        <input id="code" name="code" type="password" inputmode="numeric" maxlength="8" aria-describedby="lockmsg">
+        <button type="submit">Öppna</button>
+      </div>
+      <p id="lockmsg" role="status"></p>
+    </form>
+  </section>
+
+  <div id="locked" hidden>
+    <section>
+      <h2>Tid per plats, ungefär</h2>
+      <ul class="rows" id="rows"></ul>
+    </section>
+
+    <section>
+      <h2>Platser telefonen hittade själv</h2>
+      <ul class="found" id="found"></ul>
+    </section>
+
+    <button type="button" id="relock">Lås igen</button>
+  </div>
+
+  <p class="note">Så gjordes den: telefonen läste av båtens wifi-sändare var 30:e sekund, och varje avläsning blev en plats. Vad gubben gör är en gissning utifrån plats och klockslag: disk i mässen och vid diskarna, stängning sista timmen i mässen, nattmaten i grisen vid sista besöket i Skagerak, och i köken disk före "Släppt nu" (annars 21:30) och golv efter. Skeppet är en förenklad sidovy, inte en ritning. Däcken stämmer, läget i längsled är gissat.</p>
+</main>
+
+<script>
+
+// ---------- Läs natten ----------
+// I appen läses avläsningarna direkt ur telefonen (de senaste nätterna), annars ur det privata arkivet på GitHub.
+// Reglerna för vilka sändare som hör till vilken plats, och var rummen ligger i båten, hämtas ur arkivet. Inget av det står här.
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k, v){ try { localStorage.setItem(k, v); } catch(e){} } };
+const J = (s, f) => { try { const v = JSON.parse(s); return v == null ? f : v; } catch(e){ return f; } };
+const APP = (() => { try { return window.Natt && typeof window.Natt.version === "function" ? window.Natt : null; } catch(e){ return null; } })();
+let gh = J(store.get("natskyll:gh"), null);
+if (!gh && APP){ try { gh = J(APP.gh(), null); } catch(e){} }
+if (gh && !gh.token) gh = null;
+const online = () => navigator.onLine !== false;
+function api(path, raw){
+  return fetch("https://api.github.com/repos/" + gh.repo + path, { headers: { Authorization: "Bearer " + gh.token, Accept: raw ? "application/vnd.github.raw+json" : "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" } });
+}
+function shiftDate(ms){ const d = new Date(ms - 6 * 3600 * 1000); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+const TODAY = shiftDate(Date.now()), VER = 2;
+
+const WIFI_T = { tvattMin:-80, hyttMin:-65, massMin:-62, massOver:8, pizzanMin:-60, pizzanOver:8, brMin:-69 };
+function prep(R){
+  const map = {}, ext = {};
+  Object.keys(R.grupper || {}).forEach(g => (R.grupper[g] || []).forEach(x => { map[String(x).toLowerCase()] = g; }));
+  Object.keys(R.extra || {}).forEach(k => (R.extra[k] || []).forEach(x => { ext[String(x).toLowerCase()] = k; }));
+  return { pre: String(R.prefix || "").toLowerCase(), map, ext, t: Object.assign({}, WIFI_T, R.trosklar || {}) };
+}
+// En avläsning → S(kagerak) K(ull) P(izzan) B(R-disken) M(ässen) H(ytten) T(vätten), en plats utan namn (a, b …) eller ?
+function klass(aps, Q){
+  const g = {}; let top = -99, topKey = "";
+  for (const a of aps || []){
+    const b = String(a[0]).toLowerCase(), d = Number(a[1]);
+    if (b.indexOf(Q.pre) !== 0) continue;
+    const key = b.slice(Q.pre.length + 1, Q.pre.length + 6);
+    if (d > top){ top = d; topKey = key; }
+    const k = Q.map[key]; if (k && (g[k] == null || d > g[k])) g[k] = d;
+  }
+  const v = k => g[k] == null ? -99 : g[k], T = Q.t;
+  const skag = v("skag"), kull = v("kull"), piz = v("pizzan"), mass = v("mass"), kx = Math.max(kull, piz);
+  if (v("tvatt") >= T.tvattMin && v("tvatt") >= top - 3) return "T";
+  if (v("hytt") >= T.hyttMin && v("hytt") >= top - 3) return "H";
+  if (mass >= T.massMin && mass >= skag + T.massOver && mass >= top - 3) return "M";
+  if (piz >= T.pizzanMin && piz >= kull + T.pizzanOver) return "P";
+  if (kull >= T.brMin && kull >= skag + 3) return "B";
+  if (kx > -99 && kx > skag && kx >= top - 6) return "K";
+  if (skag > -99 && skag >= kx && skag >= top - 8) return "S";
+  if (Q.ext[topKey] && top >= -70) return Q.ext[topKey];
+  return "?";
+}
+// Avläsningar → sammanhängande stunder per plats. En ensam avvikande avläsning mellan två likadana räknas som samma plats.
+function toSegs(rows, Q){
+  rows.sort((a, b) => a.t - b.t);
+  const pts = rows.map(r => [r.t, klass(r.a, Q)]);
+  if (pts.length < 4) return null;
+  for (let i = 1; i < pts.length - 1; i++) if (pts[i][1] !== pts[i-1][1] && pts[i-1][1] === pts[i+1][1] && pts[i+1][0] - pts[i-1][0] <= 75) pts[i][1] = pts[i-1][1];
+  const out = [];
+  pts.forEach((p, i) => {
+    let nt = i + 1 < pts.length ? pts[i+1][0] : p[0] + 30;
+    if (nt - p[0] > 300) nt = p[0] + 30;                         // hål i loggen: räkna inte tiden
+    const L = out[out.length - 1];
+    if (L && L[2] === p[1] && p[0] - L[1] <= 1) L[1] = nt; else out.push([p[0], nt, p[1]]);
+  });
+  const t0 = out[0][0];
+  return { t0, n: rows.length, segs: out.map(s => [s[0] - t0, s[1] - t0, s[2]]) };
+}
+async function loadRules(){
+  let R = J(store.get("natskyll:reprisregler"), null) || (J(store.get("natskyll:wifi"), {}) || {}).rules || null;
+  if (gh && online()){
+    try { const r = await api("/contents/regler.json", true); if (r.ok){ R = await r.json(); store.set("natskyll:reprisregler", JSON.stringify(R)); } } catch(e){}
+  }
+  return R;
+}
+async function listNights(){
+  const out = {};
+  if (APP) for (let i = 0; i < 6; i++){
+    const d = shiftDate(Date.now() - i * 86400000), r = J(APP.rows(d, 99999999), null);
+    if (r && r.n > 20) out[d] = "app";
+  }
+  const cache = J(store.get("natskyll:repris"), {});
+  Object.keys(cache).forEach(d => { if (!out[d]) out[d] = "cache"; });
+  if (gh && online()){
+    try { const r = await api("/contents/wifi"); if (r.ok) (await r.json()).forEach(f => { if (/^\d{4}-\d{2}-\d{2}$/.test(f.name) && (!out[f.name] || out[f.name] === "cache")) out[f.name] = out[f.name] ? "cache+gh" : "gh"; }); } catch(e){}
+  }
+  return out;
+}
+async function loadRows(d, src){
+  if (src === "app") return (J(APP.rows(d, 0), { rows: [] }).rows) || [];
+  if (!gh) throw new Error("Den här natten finns bara i arkivet, och backupen är inte inkopplad.");
+  const l = await api("/contents/wifi/" + d);
+  if (!l.ok) throw new Error("Kunde inte läsa arkivet (" + l.status + ").");
+  const names = (await l.json()).filter(f => /\.jsonl$/.test(f.name)).map(f => f.name).sort(), rows = [];
+  for (let i = 0; i < names.length; i += 6){
+    await Promise.all(names.slice(i, i + 6).map(async n => {
+      const r = await api("/contents/wifi/" + d + "/" + n, true);
+      if (!r.ok) throw new Error("Kunde inte läsa arkivet (" + r.status + ").");
+      (await r.text()).split("\n").forEach(line => { line = line.trim(); if (!line) return; try { const o = JSON.parse(line); if (o && o.t) rows.push(o); } catch(e){} });
+    }));
+    document.getElementById("lede").textContent = "Läser natten … " + Math.min(names.length, i + 6) + " av " + names.length + " delar";
+  }
+  return rows;
+}
+const dayFmt = new Intl.DateTimeFormat("sv-SE", { weekday: "short", day: "numeric", month: "numeric" });
+const longFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "long" });
+function nightLabel(d){ return d === TODAY ? "i natt" : dayFmt.format(new Date(d + "T12:00:00")); }
+async function loadNight(){
+  const nights = await listNights(), dates = Object.keys(nights).sort().reverse();
+  if (!dates.length) throw new Error(gh || APP ? "Det finns ingen wifi-logg att spela upp än." : "Reprisen behöver wifi-loggen. Koppla in backupen under Tider i Nattskyller först.");
+  let d = (location.hash || "").slice(1); if (!nights[d]) d = dates[0];
+  const nav = document.getElementById("nights");
+  dates.slice(0, 21).forEach(x => {
+    const a = document.createElement("a"); a.href = "#" + x; a.textContent = nightLabel(x); if (x === d) a.setAttribute("aria-current", "true");
+    a.addEventListener("click", e => { e.preventDefault(); if (x === d) return; location.hash = x; location.reload(); });
+    nav.appendChild(a);
+  });
+  const R = await loadRules();
+  if (!R || !R.rum) throw new Error("Hittar inte reglerna för platserna. Öppna reprisen en gång med nät, så sparas de i telefonen.");
+  const cache = J(store.get("natskyll:repris"), {}), tag = R.v + ":" + VER;
+  let N = d < TODAY && cache[d] && cache[d].v === tag ? cache[d] : null;
+  if (!N){
+    const src = nights[d] === "app" ? "app" : "gh";
+    N = toSegs(await loadRows(d, src), prep(R));
+    if (!N || N.segs.length < 2) throw new Error("Loggen för den natten är för kort för att spela upp.");
+    if (d < TODAY){
+      N.v = tag; cache[d] = N;
+      Object.keys(cache).sort().reverse().slice(21).forEach(k => delete cache[k]);
+      store.set("natskyll:repris", JSON.stringify(cache));
+    }
+  }
+  const next = new Date(d + "T12:00:00"); next.setDate(next.getDate() + 1);
+  document.getElementById("eyebrow").textContent = "Natten " + longFmt.format(new Date(d + "T12:00:00")).replace(/ .*/, "") + "–" + longFmt.format(next);
+  // släppt från disken: det som trycktes i appen den natten, annars 21:30
+  const freeMs = (J(store.get("natskyll:free"), {}) || {})[d] || new Date(d + "T21:30:00").getTime();
+  return { date: d, t0: N.t0, n: N.n, segs: N.segs, rooms: R.rum, free: Math.round(freeMs / 1000 - N.t0) };
+}
+
+(async function main(){
+let D;
+try { D = await loadNight(); }
+catch(e){ document.getElementById("lede").textContent = e && e.message ? e.message : "Kunde inte läsa natten."; return; }
+document.querySelector("main").removeAttribute("data-state");
+// Platserna. Färgen följer platsen överallt: i skeppet, i tidslinjen och i listan.
+const P = {
+  S:{n:"Skagerak", c:"#5AB4FF"}, B:{n:"BR-disken", c:"#A995FF"}, K:{n:"Kull", c:"#6EDC9A"}, P:{n:"Pizzan", c:"#FF8F5E"},
+  M:{n:"Mässen", c:"#F59BC4"}, T:{n:"Tvätten, däck 1", c:"#4FD8D2"}, H:{n:"Hytten", c:"#B9C6DA"},
+  a:{n:"Okänd plats A", c:"#6B7C96"}, b:{n:"Okänd plats B", c:"#6B7C96"}
+};
+const SHORT = { S:"SKAGERAK", B:"BR-DISKEN", K:"KULL", P:"PIZZAN", M:"MÄSSEN", T:"TVÄTTEN", H:"HYTTEN", a:"A", b:"B" };
+const REST = { H:1 };   // rast: visas grövre. Mässen är jobb (disk), inte rast.
+D.segs.forEach(g => { if (g[2] !== "?" && (!D.rooms[g[2]] || !P[g[2]])) g[2] = "?"; });
+const segs = D.segs, END = segs[segs.length-1][1], T0 = D.t0;
+const fmt = new Intl.DateTimeFormat("sv-SE", { hour:"2-digit", minute:"2-digit", timeZone:"Europe/Stockholm" });
+const hhmm = s => fmt.format(new Date((T0 + s) * 1000));
+// Tider visas ungefärligt: klockan i femminuterssteg, tid per plats på fem minuter när, raster på en kvart när.
+const clock5 = s => hhmm(Math.floor((T0 + s) / 300) * 300 - T0);
+function about(s, k){
+  const stepMin = REST[k] ? 15 : 5, m = Math.round(s / 60 / stepMin) * stepMin;
+  if (s < 30) return "–";
+  if (m === 0) return "några min";
+  return m < 60 ? m + " min" : Math.floor(m / 60) + " h" + (m % 60 ? " " + (m % 60) + " min" : "");
+}
+
+// Förflyttningar mellan kända platser (avläsningar utan plats hoppas över) och summan per plats.
+const moves = []; let prev = null;
+segs.forEach(g => { if (g[2] === "?") return; if (prev && prev[2] !== g[2]) moves.push([g[0], prev[2], g[2]]); prev = g; });
+const total = {}; segs.forEach(g => { total[g[2]] = (total[g[2]] || 0) + g[1] - g[0]; });
+const order = Object.keys(P).filter(k => total[k]).sort((a,b) => total[b] - total[a]);
+const maxTotal = Math.max.apply(null, order.map(k => total[k]));
+
+document.getElementById("lede").textContent = D.n.toLocaleString("sv-SE") + " wifi-avläsningar blev " + moves.length +
+  " förflyttningar mellan " + order.length + " platser. Följ gubben genom båten, däck för däck.";
+
+const rowsEl = document.getElementById("rows"), rowRef = {};
+order.forEach(k => {
+  const li = document.createElement("li"); li.className = "row";
+  li.innerHTML = '<span class="nm"><span class="dot"></span><span class="t"></span></span><span class="bar"><i></i></span><span class="val"></span>';
+  li.querySelector(".dot").style.background = P[k].c; li.querySelector(".t").textContent = P[k].n;
+  li.querySelector("i").style.background = P[k].c;
+  rowsEl.appendChild(li); rowRef[k] = { bar: li.querySelector("i"), val: li.querySelector(".val"), shown: "" };
+});
+
+const foundEl = document.getElementById("found");
+["a","b"].forEach(k => {
+  const mine = segs.map((g,i) => [g,i]).filter(x => x[0][2] === k);
+  if (!mine.length) return;
+  const near = (i, step) => { for (let j = i + step; j >= 0 && j < segs.length; j += step){ const c = segs[j][2]; if (c !== "?" && c !== k) return P[c].n; } return ""; };
+  const li = document.createElement("li"), b = document.createElement("b"), p = document.createElement("p");
+  b.textContent = P[k].n;
+  p.textContent = "Du var här en kort stund runt " + clock5(mine[0][0][0]) + ", intill " + (near(mine[mine.length-1][1], 1) || near(mine[0][1], -1)) +
+    ". En egen sändare hörs starkt här och ingen annanstans. Vad är det för ställe?";
+  li.append(b, p); foundEl.appendChild(li);
+});
+
+// Sista timmen i mässen är stängningen: städa, torka och diska tills den är perfekt.
+const lastMess = segs.reduce((m, g) => g[2] === "M" ? g[1] : m, 0), lateMess = lastMess > 0 && /^0[1-5]/.test(hhmm(lastMess)), CLOSE_FROM = lateMess ? lastMess - 3600 : END + 1;
+
+// Nattens sista besök i Skagerak: nattmaten går i grisen (kvarnen).
+const lastSkag = segs.reduce((m, g) => g[2] === "S" ? g[0] : m, -1), PIG_FROM = lastSkag >= 0 && lateMess && lastSkag >= lastMess - 3600 ? lastSkag : END + 1;
+
+// Sammanställningen visas först när rätt kod skrivits. Koden står inte i klartext här, bara som kontrollsumma.
+// Det skyddar mot den som tittar på skärmen, inte mot den som läser sidans källa.
+const lockEl = document.getElementById("lock"), lockedEl = document.getElementById("locked"), codeEl = document.getElementById("code"), lockMsg = document.getElementById("lockmsg");
+function sum(str){ let v = 5381; for (let i = 0; i < str.length; i++) v = ((v * 33) ^ str.charCodeAt(i)) >>> 0; return v; }
+document.getElementById("lockform").addEventListener("submit", e => {
+  e.preventDefault();
+  if (sum("natten:" + codeEl.value.trim()) === 125541723){ lockEl.hidden = true; lockedEl.hidden = false; lockMsg.textContent = ""; }
+  else { lockMsg.textContent = "Fel kod."; codeEl.select(); }
+  codeEl.value = "";
+});
+document.getElementById("relock").addEventListener("click", () => { lockedEl.hidden = true; lockEl.hidden = false; });
+
+// ---------- Uppspelning ----------
+let pos = END, playing = false, lenSec = 300, lastTs = 0, anim = 0, wide = false;
+const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function segIndex(t){ let lo = 0, hi = segs.length - 1; while (lo < hi){ const m = (lo + hi + 1) >> 1; if (segs[m][0] <= t) lo = m; else hi = m - 1; } return lo; }
+function knownAround(i){
+  let a = i, b = i;
+  while (a > 0 && segs[a][2] === "?") a--;
+  while (b < segs.length - 1 && segs[b][2] === "?") b++;
+  return [segs[a][2] === "?" ? segs[b][2] : segs[a][2], segs[b][2] === "?" ? segs[a][2] : segs[b][2]];
+}
+function spent(t){
+  const o = {}; for (const g of segs){ if (g[0] >= t) break; o[g[2]] = (o[g[2]] || 0) + Math.min(g[1], t) - g[0]; } return o;
+}
+
+const map = document.getElementById("map"), tl = document.getElementById("tl");
+function fit(cv){
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const c = cv.getContext("2d"); c.setTransform(d, 0, 0, d, 0, 0); return [c, r.width, r.height, d];
+}
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------- Skeppet ----------
+// x går från akter (0) till för (1). Däck 1 ligger under vattenlinjen, däck 3–4 är bildäck.
+const DECKS = 11;
+const SPAN = { 1:[.12,.84], 2:[.08,.89], 3:[.05,.93], 4:[.04,.955], 5:[.04,.975], 6:[.07,.90], 7:[.07,.90], 8:[.08,.875], 9:[.10,.83], 10:[.13,.77], 11:[.22,.64] };
+const SHAFTS = [.20, .50, .78];           // trapphus
+const FIRST = (segs.find(g => g[2] !== "?") || [0, 0, Object.keys(D.rooms)[0]])[2];
+const ROOMS = D.rooms;                    // {plats: [däck, från, till]}
+const stars = []; { let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647; for (let i = 0; i < 60; i++) stars.push([rnd(), rnd() * .34, .4 + rnd() * .6]); }
+const me = { x: 0, d: 1, init: false, dir: 1, moving: false, stairs: false, settle: 0, room: "" };
+const cam = { x: 0, y: 0, z: 1, init: false };
+let wave = 0;
+
+function geom(W, H){
+  const top = H * .23, bottom = H * .90, dh = (bottom - top) / DECKS, x0 = W * .035, len = W * .93;
+  return { dh, X: x => x0 + x * len, Y: d => bottom - d * dh };   // Y(d) = taket på däck d, Y(d-1) = golvet
+}
+function target(){
+  const i = segIndex(Math.min(pos, END - .001));
+  let k = segs[i][2]; if (k === "?") k = knownAround(i)[1];
+  if (k === "?" || !ROOMS[k]) k = FIRST;
+  const r = ROOMS[k]; return { k, x: (r[1] + r[2]) / 2, d: r[0] };
+}
+// Gubben går längs däcket till närmaste trapphus, tar trappan och går vidare längs däcket.
+function step(dt){
+  const t = target();
+  if (!me.init || !playing){ me.x = t.x; me.d = t.d; me.init = true; me.moving = false; me.stairs = false; me.settle = 1; me.room = t.k; return t; }
+  const rate = Math.max(.35, 300 / lenSec), vx = .12 * rate * dt, vd = 1.9 * rate * dt;
+  me.moving = false; me.stairs = false;
+  if (Math.abs(me.d - t.d) > .001){
+    let sx = SHAFTS[0], best = 9;
+    SHAFTS.forEach(s => { const c = Math.abs(me.x - s) + Math.abs(t.x - s); if (c < best){ best = c; sx = s; } });
+    const onDeck = Math.abs(me.d - Math.round(me.d)) < .001;
+    if (onDeck && Math.abs(me.x - sx) > .0015){ me.dir = Math.sign(sx - me.x); me.x += me.dir * Math.min(vx, Math.abs(sx - me.x)); }
+    else { me.d += Math.sign(t.d - me.d) * Math.min(vd, Math.abs(t.d - me.d)); me.stairs = true; }
+    me.moving = true;
+  } else {
+    me.d = t.d;
+    if (Math.abs(me.x - t.x) > .0005){ me.dir = Math.sign(t.x - me.x); me.x += me.dir * Math.min(vx, Math.abs(t.x - me.x)); me.moving = true; }
+  }
+  me.settle += ((me.moving ? 0 : 1) - me.settle) * Math.min(1, dt * 5);
+  me.room = me.moving ? "" : t.k;
+  return t;
+}
+// Vad gubben gör: bestäms av platsen och av om du blivit släppt från disken.
+function doing(t){
+  if (me.moving){
+    const plates = !me.stairs && pos < D.free && (t.k === "K" || t.k === "P");
+    return { a: me.stairs ? "stairs" : plates ? "carrywalk" : "walk", text: "På väg till " + P[t.k].n.replace(", däck 1", "") };
+  }
+  const free = pos >= D.free, k = t.k;
+  if (k === "H") return { a: "sleep", text: "Vilar i hytten" };
+  if (k === "M"){
+    if (pos < CLOSE_FROM) return { a: "dish", text: "Diskar i mässen" };
+    return { a: ["mop", "wipe", "dish"][Math.floor(anim / 5) % 3], text: "Stänger mässen" };
+  }
+  if (k === "T") return { a: "laundry", text: "Sköter tvätten" };
+  if (k === "B") return { a: "dish", text: "Diskar i BR-disken" };
+  if (k === "S" && pos >= PIG_FROM) return { a: "pig", text: "Matar grisen med nattmaten" };
+  if (k === "S") return free ? { a: "mop", text: "Golvet i Skagerak" } : { a: "dish", text: "Diskar i Skagerak" };
+  if (k === "K" || k === "P") return free ? { a: "mop", text: "Golvet i " + P[k].n } : { a: "carry", text: "Lämnar disk i " + P[k].n };
+  return { a: "stand", text: P[k].n };
+}
+
+function shipPaths(X, Y){
+  const hull = new Path2D();
+  hull.moveTo(X(.045), Y(5)); hull.lineTo(X(.995), Y(5)); hull.lineTo(X(.93), Y(2.2)); hull.quadraticCurveTo(X(.90), Y(0), X(.84), Y(0));
+  hull.lineTo(X(.13), Y(0)); hull.quadraticCurveTo(X(.05), Y(.2), X(.03), Y(2.4)); hull.closePath();
+  const sup = new Path2D();
+  sup.moveTo(X(.07), Y(5)); sup.lineTo(X(.07), Y(7)); sup.lineTo(X(.08), Y(8)); sup.lineTo(X(.10), Y(9)); sup.lineTo(X(.13), Y(10)); sup.lineTo(X(.22), Y(10)); sup.lineTo(X(.22), Y(11));
+  sup.lineTo(X(.64), Y(11)); sup.lineTo(X(.66), Y(10)); sup.lineTo(X(.77), Y(10)); sup.lineTo(X(.83), Y(9)); sup.lineTo(X(.875), Y(8)); sup.lineTo(X(.90), Y(7)); sup.lineTo(X(.90), Y(5)); sup.closePath();
+  return [hull, sup];
+}
+
+// En glimt: fyruddig stjärna, samma som i appens ikon.
+function spark(c, x, y, r){
+  c.beginPath(); c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r); c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r); c.fill();
+}
+// ---------- Gubben ----------
+// Ritad från sidan i egna mått: origo vid fötterna, x framåt, y uppåt negativt, 1 = däckshöjden.
+// Svarta byxor, svart t-shirt med ett litet ljust märke på bröstet, ljus kontur så att han syns mot mörka väggar.
+const SKIN = "#E9B690", HAIR = "#2A211C", SHIRT = "#1C1E24", PANTS = "#121318", SHOE = "#0A0B0D", EDGE = "rgba(214,226,242,.6)", PROP = "rgba(226,234,246,.85)";
+// Ett ben eller en arm i två delar: räknar ut knät/armbågen så att längderna stämmer.
+function joint(a, b, l1, l2, bend){
+  let dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy); const max = l1 + l2 - .001;
+  if (d > max){ dx *= max / d; dy *= max / d; d = max; b = [a[0] + dx, a[1] + dy]; }
+  const k = Math.acos(Math.max(-1, Math.min(1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)))), ang = Math.atan2(dy, dx) + bend * k;
+  return [[a[0] + Math.cos(ang) * l1, a[1] + Math.sin(ang) * l1], b];
+}
+function seg(c, pts, w, col){
+  c.lineCap = "round"; c.lineJoin = "round";
+  c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]);
+  c.strokeStyle = EDGE; c.lineWidth = w + .016; c.stroke(); c.strokeStyle = col; c.lineWidth = w; c.stroke();
+}
+function line(c, x1, y1, x2, y2, w, col){ c.lineCap = "round"; c.strokeStyle = col || PROP; c.lineWidth = w || .02; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); }
+function box(c, x, y, w, h, fill, stroke){ c.beginPath(); c.roundRect(x, y, w, h, .012); if (fill){ c.fillStyle = fill; c.fill(); } if (stroke){ c.strokeStyle = stroke; c.lineWidth = .014; c.stroke(); } }
+
+// Kroppen utifrån en pose: {lean, hip, fF, fB (fötter), hF, hB (händer)}
+function body(c, q){
+  const hip = [q.hx || 0, q.hip], ln = q.lean || 0, sh = [hip[0] + Math.sin(ln) * .25, hip[1] - Math.cos(ln) * .25];
+  const head = [sh[0] + Math.sin(ln * 1.2) * .115, sh[1] - Math.cos(ln * 1.2) * .115];
+  const leg = (f) => { const [k, e] = joint(hip, f, .19, .19, -1); seg(c, [hip, k, e], .072, PANTS); box(c, e[0] - .035, e[1] - .028, .085, .034, SHOE, EDGE); };
+  const arm = (h) => {
+    const [el, e] = joint(sh, h, .125, .125, 1), mid = [sh[0] + (el[0] - sh[0]) * .62, sh[1] + (el[1] - sh[1]) * .62];
+    seg(c, [mid, el, e], .042, SKIN); seg(c, [sh, mid], .058, SHIRT);
+    c.fillStyle = SKIN; c.beginPath(); c.arc(e[0], e[1], .026, 0, 6.2832); c.fill();
+  };
+  arm(q.hB); leg(q.fB);
+  seg(c, [[hip[0], hip[1] - .02], [sh[0], sh[1] + .035]], .135, SHIRT);                        // t-shirten
+  seg(c, [[hip[0] - .005, hip[1] + .01], [hip[0] + .005, hip[1] + .012]], .12, PANTS);         // byxlinningen
+  const lg = [hip[0] + (sh[0] - hip[0]) * .66 + .038, hip[1] + (sh[1] - hip[1]) * .66];        // märket på bröstet
+  c.save(); c.translate(lg[0], lg[1]); c.rotate(ln); box(c, -.014, -.012, .03, .022, "rgba(240,244,250,.92)"); c.restore();
+  line(c, sh[0], sh[1], head[0], head[1] + .05, .045, SKIN);                                   // halsen
+  c.fillStyle = SKIN; c.strokeStyle = EDGE; c.lineWidth = .012; c.beginPath(); c.arc(head[0], head[1], .078, 0, 6.2832); c.fill(); c.stroke();
+  c.fillStyle = HAIR; c.beginPath(); c.arc(head[0], head[1], .081, Math.PI * .86 + ln, Math.PI * 1.9 + ln); c.closePath(); c.fill();   // håret: över hjässan och nacken
+  c.fillStyle = "#1B1512"; c.beginPath(); c.arc(head[0] + .045, head[1] - .008, .009, 0, 6.2832); c.fill();   // ögat
+  leg(q.fF); arm(q.hF);
+  return { sh, hip, head };
+}
+
+function person(c, x, y, u, act, dir, ph, fast){
+  c.save(); c.translate(x, y); c.scale(u * dir, u);
+  const S = Math.sin, C = Math.cos, hang = (ox) => [ox, -.60 + .235];
+  let q;
+  if (act === "sleep"){
+    // säng med madrass, kudde och täcke. Bara huvudet sticker fram.
+    box(c, -.40, -.13, .80, .05, "#3A4B66", EDGE); line(c, -.38, -.08, -.38, 0, .025); line(c, .38, -.08, .38, 0, .025); line(c, -.40, -.13, -.40, -.27, .025);
+    box(c, -.37, -.185, .16, .055, "#DDE5F0");                                                  // kudden
+    c.fillStyle = SKIN; c.strokeStyle = EDGE; c.lineWidth = .012; c.beginPath(); c.arc(-.27, -.215, .07, 0, 6.2832); c.fill(); c.stroke();
+    c.fillStyle = HAIR; c.beginPath(); c.arc(-.27, -.215, .072, Math.PI * .55, Math.PI * 1.55); c.fill();
+    const br = S(ph * 1.6) * .012;
+    c.fillStyle = "#31507E"; c.strokeStyle = EDGE; c.lineWidth = .012; c.beginPath(); c.moveTo(-.20, -.13); c.quadraticCurveTo(-.16, -.25 - br, -.02, -.24 - br); c.quadraticCurveTo(.22, -.22 - br, .36, -.13); c.closePath(); c.fill(); c.stroke();
+    c.restore();
+    c.fillStyle = "rgba(232,238,246,.85)"; c.textAlign = "center";
+    for (let i = 0; i < 3; i++){ const f = (ph * .22 + i / 3) % 1; c.globalAlpha = 1 - f; c.font = "600 " + (u * (.14 + f * .1)) + "px " + css("--body"); c.fillText("z", x + (-.22 + f * .14) * u * dir, y - (.36 + f * .42) * u); }
+    c.globalAlpha = 1; return;
+  }
+  if (act === "walk" || act === "stairs" || act === "carrywalk"){
+    const f = ph * (fast ? 13 : 9), lift = act === "stairs" ? .11 : .06, st = fast ? .16 : .12;
+    q = { lean: fast ? .2 : .09, hip: -.365 - C(f * 2) * .012, fF: [S(f) * st, -Math.max(0, C(f)) * lift], fB: [-S(f) * st, -Math.max(0, -C(f)) * lift],
+          hF: [.03 - S(f) * .13, -.60 + .21 - Math.abs(S(f)) * .04], hB: [.03 + S(f) * .13, -.60 + .21 - Math.abs(S(f)) * .04] };
+    if (act === "carrywalk"){ q.hF = [.17, -.44]; q.hB = [.15, -.43]; }
+    body(c, q);
+    if (act === "carrywalk") for (let i = 0; i < 4; i++) box(c, .13, -.475 - i * .016, .12, .012, "#E7EDF5");
+  }
+  else if (act === "mop"){
+    const r = S(ph * 4.2) * .10;
+    line(c, .50, -.012, .68, -.012, .014, "rgba(120,190,255,.5)"); line(c, .06, -.012, -.10, -.012, .014, "rgba(120,190,255,.35)");   // blött golv
+    q = { lean: .26 + r * .5, hip: -.355, fF: [.09, 0], fB: [-.10, 0], hF: [.20 + r * .55, -.37], hB: [.12 + r * .4, -.47] };
+    line(c, .07 + r * .3, -.57, .40 + r, -.03, .022, "#C9D4E3");                                                                    // skaftet
+    box(c, .31 + r, -.045, .18, .04, "#8FB7E8", EDGE);                                                                               // moppen
+    body(c, q);
+    box(c, -.33, -.13, .13, .13, "#2E6FB8", EDGE); line(c, -.33, -.13, -.265, -.21, .012); line(c, -.20, -.13, -.265, -.21, .012);  // hinken
+  }
+  else if (act === "dish"){
+    const a = S(ph * 5) * .035;
+    box(c, .17, -.30, .40, .30, "#3B4A63", EDGE); box(c, .20, -.33, .16, .04, "#7D93B2");                                            // bänk och ho
+    for (let i = 0; i < 5; i++) box(c, .40, -.318 - i * .014, .11, .011, "#E7EDF5");                                                // rena tallrikar
+    q = { lean: .13, hip: -.36, fF: [.06, 0], fB: [-.05, 0], hF: [.26, -.345 + a], hB: [.31, -.34 - a] };
+    body(c, q);
+    c.fillStyle = "#E7EDF5"; c.beginPath(); c.ellipse(.285, -.37 + a * .5, .05, .012, -.3, 0, 6.2832); c.fill();                    // tallriken i handen
+    for (let i = 0; i < 4; i++){ const f = (ph * .45 + i / 4) % 1; c.globalAlpha = (1 - f) * .75; c.strokeStyle = "rgba(214,232,250,.9)"; c.lineWidth = .008; c.beginPath(); c.arc(.22 + i * .035 + S(ph + i) * .01, -.35 - f * .3, .014 + f * .014, 0, 6.2832); c.stroke(); }
+    c.globalAlpha = 1;
+  }
+  else if (act === "wipe"){
+    const h = S(ph * 6) * .11;
+    box(c, .14, -.285, .42, .028, "#7C5B3E", EDGE); line(c, .20, -.26, .20, 0, .024, "#5E6B80"); line(c, .50, -.26, .50, 0, .024, "#5E6B80");   // bordet
+    q = { lean: .24, hip: -.36, fF: [.07, 0], fB: [-.07, 0], hF: [.33 + h, -.305], hB: hang(-.02) };
+    body(c, q);
+    box(c, .30 + h, -.305, .07, .02, "#F2B95A");                                                                                    // trasan
+    c.fillStyle = "rgba(255,255,255," + (.35 + .5 * Math.max(0, S(ph * 3))) + ")"; spark(c, .47, -.34, .035);
+  }
+  else if (act === "carry"){
+    q = { lean: .05, hip: -.365, fF: [.04, 0], fB: [-.04, 0], hF: [.17, -.44], hB: [.15, -.43] };
+    body(c, q); for (let i = 0; i < 4; i++) box(c, .13, -.475 - i * .016, .12, .012, "#E7EDF5");
+  }
+  else if (act === "laundry"){
+    box(c, .20, -.40, .32, .40, "#D7DEE9", EDGE); box(c, .23, -.385, .26, .035, "#9AA9BF");
+    c.fillStyle = "#1B2A40"; c.strokeStyle = "#9AA9BF"; c.lineWidth = .02; c.beginPath(); c.arc(.36, -.18, .105, 0, 6.2832); c.fill(); c.stroke();
+    c.strokeStyle = "#4FD8D2"; c.lineWidth = .03; c.beginPath(); c.arc(.36, -.18, .06, ph * 4, ph * 4 + 2.2); c.stroke();
+    c.strokeStyle = "#F59BC4"; c.beginPath(); c.arc(.36, -.18, .04, ph * 4 + 3, ph * 4 + 4.6); c.stroke();
+    q = { lean: .34, hip: -.33, fF: [.05, 0], fB: [-.08, 0], hF: [.25, -.25 + S(ph * 3) * .02], hB: [.22, -.31] };
+    body(c, q);
+  }
+  else if (act === "pig"){
+    const tip = .05 + Math.max(0, S(ph * 2.2)) * .11;
+    // grisen: kvarnen med öron och tryne
+    c.fillStyle = "#F59BC4"; c.strokeStyle = EDGE; c.lineWidth = .012;
+    c.beginPath(); c.moveTo(.24, -.24); c.lineTo(.52, -.24); c.lineTo(.48, 0); c.lineTo(.28, 0); c.closePath(); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(.25, -.24); c.lineTo(.235, -.33); c.lineTo(.31, -.24); c.closePath(); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(.51, -.24); c.lineTo(.525, -.33); c.lineTo(.45, -.24); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = "#E77FAE"; c.beginPath(); c.ellipse(.38, -.10, .06, .045, 0, 0, 6.2832); c.fill();
+    c.fillStyle = "#5A2740"; c.beginPath(); c.arc(.36, -.10, .011, 0, 6.2832); c.arc(.40, -.10, .011, 0, 6.2832); c.fill();
+    c.beginPath(); c.arc(.32, -.185, .009, 0, 6.2832); c.arc(.44, -.185, .009, 0, 6.2832); c.fill();
+    q = { lean: .14, hip: -.36, fF: [.06, 0], fB: [-.06, 0], hF: [.20, -.39 + tip * .6], hB: [.10, -.43 - tip * .4] };
+    body(c, q);
+    c.save(); c.translate(.16, -.43); c.rotate(.25 + tip * 3.2); box(c, -.09, -.05, .18, .07, "#5E6B80", EDGE); c.restore();          // backen
+    for (let i = 0; i < 5; i++){ const f = (ph * .9 + i / 5) % 1; c.globalAlpha = 1 - f * .5; c.fillStyle = i % 2 ? "#FF8F5E" : "#F2D08A"; c.beginPath(); c.arc(.26 + f * .09 + i * .008, -.40 + f * f * .17, .014, 0, 6.2832); c.fill(); }
+    c.globalAlpha = 1;
+  }
+  else {
+    q = { lean: .03, hip: -.365 + S(ph * 1.5) * .003, fF: [.04, 0], fB: [-.04, 0], hF: hang(.03), hB: hang(-.02) };
+    body(c, q);
+  }
+  c.restore();
+}
+
+function drawShip(c, W, H, sp, z){
+  const G = geom(W, H), X = G.X, Y = G.Y, dh = G.dh, [hull, sup] = shipPaths(X, Y), thin = 1 / Math.sqrt(z);
+  // natthimmel, stjärnor och måne
+  stars.forEach(s => { c.fillStyle = "rgba(232,238,246," + (.25 + .5 * s[2]) + ")"; const r = (s[2] > .8 ? 1.5 : 1) * thin; c.fillRect(s[0] * W, s[1] * H, r, r); });
+  c.fillStyle = css("--moon"); c.beginPath(); c.arc(W * .88, H * .09, 11, 0, 6.2832); c.fill();
+  c.fillStyle = css("--chart"); c.beginPath(); c.arc(W * .88 + 5, H * .09 - 3.5, 9.5, 0, 6.2832); c.fill();
+  // skrov, överbyggnad, skorsten, mast
+  c.fillStyle = "#0C1728"; c.fill(hull); c.strokeStyle = css("--line"); c.lineWidth = 1.5 * thin; c.stroke(hull);
+  c.fillStyle = "#0E1B2F"; c.fill(sup); c.stroke(sup);
+  c.fillStyle = "#13233A"; c.beginPath(); c.moveTo(X(.27), Y(11)); c.lineTo(X(.285), Y(11) - dh * 1.5); c.lineTo(X(.35), Y(11) - dh * 1.5); c.lineTo(X(.37), Y(11)); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = css("--moon"); c.fillRect(X(.289), Y(11) - dh * 1.22, X(.35) - X(.289) + 1.5, 3 * thin);
+  c.beginPath(); c.moveTo(X(.60), Y(11)); c.lineTo(X(.60), Y(11) - dh * 1.1); c.stroke();
+  // däck, däcksnummer, bildäck
+  for (let d = 1; d <= DECKS; d++){
+    const s = SPAN[d];
+    c.strokeStyle = "rgba(34,56,90,.9)"; c.lineWidth = thin;
+    c.beginPath(); c.moveTo(X(s[0]), Y(d - 1)); c.lineTo(X(s[1]), Y(d - 1)); c.stroke();
+    c.font = (dh * .42) + "px " + css("--body"); c.fillStyle = "rgba(132,152,179,.7)"; c.textAlign = "left";
+    c.fillText(String(d), X(s[0]) + dh * .12, Y(d - 1) - dh * .32);
+  }
+  c.fillStyle = "rgba(34,56,90,.35)"; c.fillRect(X(SPAN[3][0]), Y(4), X(SPAN[4][1]) - X(SPAN[3][0]), dh * 2);
+  c.font = (dh * .4) + "px " + css("--body"); c.fillStyle = "rgba(132,152,179,.55)"; c.textAlign = "center"; c.fillText("B I L D Ä C K", X(.36), Y(3) + dh * .14);
+  // trapphus med trappsteg
+  SHAFTS.forEach(s => {
+    const w = dh * .5; c.fillStyle = "rgba(34,56,90,.42)"; c.fillRect(X(s) - w / 2, Y(10), w, dh * 10);
+    c.strokeStyle = "rgba(132,152,179,.45)"; c.lineWidth = thin * .8;
+    for (let d = 0; d < 10; d++){ c.beginPath(); c.moveTo(X(s) - w / 2, Y(d)); c.lineTo(X(s) + w / 2, Y(d) - dh * .5); c.lineTo(X(s) - w / 2, Y(d + 1)); c.stroke(); }
+  });
+  // rummen: lyser starkare ju längre du varit där, och mest där du är nu
+  Object.keys(ROOMS).forEach(k => {
+    if (!total[k]) return;
+    const r = ROOMS[k], x = X(r[1]) + thin, w = X(r[2]) - X(r[1]) - 2 * thin, y = Y(r[0]) + thin, h = dh - 2 * thin, tm = sp[k] || 0, on = k === me.room;
+    c.globalAlpha = on ? .34 : Math.min(.26, .05 + Math.sqrt(tm / 60) * .02);
+    c.fillStyle = P[k].c; c.beginPath(); c.roundRect(x, y, w, h, 2.5 * thin); c.fill();
+    c.globalAlpha = tm || on ? 1 : .4; c.strokeStyle = P[k].c; c.lineWidth = (on ? 1.8 : 1) * thin; c.stroke(); c.globalAlpha = 1;
+    if (z > 1.6){
+      c.save(); c.beginPath(); c.roundRect(x, y, w, h, 2.5 * thin); c.clip();
+      const n = Math.max(1, Math.round(w / (dh * 1.15)));
+      for (let i = 0; i < n; i++){
+        const lx = x + w * (i + .5) / n, lg = c.createRadialGradient(lx, y, 0, lx, y + dh * .2, dh * 1.05);
+        lg.addColorStop(0, "rgba(255,244,214," + (on ? .30 : .12) + ")"); lg.addColorStop(1, "rgba(255,244,214,0)");
+        c.fillStyle = lg; c.fillRect(lx - dh * 1.1, y, dh * 2.2, h);
+        c.fillStyle = "rgba(255,246,222," + (on ? .95 : .5) + ")"; c.fillRect(lx - dh * .09, y + dh * .035, dh * .18, dh * .028);
+      }
+      c.fillStyle = P[k].c; c.globalAlpha = on ? .55 : .3; c.fillRect(x, y + h - dh * .035, w, dh * .035); c.globalAlpha = 1;
+      c.restore();
+    }
+    c.font = "600 " + (dh * (z > 1.6 ? .17 : .24)) + "px " + css("--body"); c.textAlign = "left";
+    if (c.measureText(SHORT[k]).width <= w - dh * .1){ c.fillStyle = P[k].c; c.fillText(SHORT[k], x + dh * .08, y + dh * (z > 1.6 ? .22 : .27)); }
+    // mässen glimmar när den är stängd och klar
+    if (k === "M" && lateMess && pos >= lastMess - 1){
+      [[.30, .62, 0], [.55, .40, 1.3], [.78, .68, 2.4], [.90, .34, 3.5]].forEach(q => {
+        c.fillStyle = "rgba(255,255,255," + (.35 + .55 * Math.max(0, Math.sin(anim * 2.2 + q[2]))) + ")"; spark(c, x + w * q[0], y + h * q[1], dh * .09);
+      });
+    }
+  });
+  // havet: vattenlinjen går genom däck 2
+  const wy = Y(2) + dh * .2, wv = x => wy + Math.sin(x / 26 + wave) * 2.2 + Math.sin(x / 9 + wave * 1.7) * .8;
+  c.fillStyle = "rgba(20,52,92,.42)"; c.beginPath(); c.moveTo(-W, H * 2); c.lineTo(-W, wy);
+  for (let x = 0; x <= W; x += 5) c.lineTo(x, wv(x));
+  c.lineTo(W * 2, wy); c.lineTo(W * 2, H * 2); c.closePath(); c.fill();
+  c.strokeStyle = "rgba(90,180,255,.35)"; c.lineWidth = thin; c.beginPath();
+  for (let x = 0; x <= W; x += 5){ if (x) c.lineTo(x, wv(x)); else c.moveTo(x, wv(x)); }
+  c.stroke();
+}
+
+let nowAct = null;
+function drawMap(dt){
+  const [c, W, H] = fit(map);
+  dt = dt || 0; anim += dt; wave += dt * 1.4;
+  const t = step(dt), sp = spent(pos), act = doing(t);
+  nowAct = act;
+  const G0 = geom(W, H), dh = G0.dh;
+  // kameran följer gubben. Nära: ungefär tre däck i bild.
+  const zWant = wide ? 1 : Math.min(5.2, Math.max(3, H / (dh * 3.5)));
+  // på golvet går gubben fram och tillbaka medan han skurar
+  const r = ROOMS[t.k], roam = act.a === "mop" ? Math.sin(anim * .7) * Math.max(0, (r[2] - r[1]) / 2 - .035) * me.settle : 0;
+  const fx = G0.X(me.x + roam), fy = G0.Y(me.d - 1);
+  const dirNow = act.a === "mop" ? (Math.cos(anim * .7) >= 0 ? 1 : -1) : me.dir;
+  if (!cam.init || !playing){ cam.z = zWant; cam.x = fx; cam.y = fy - dh * .5; cam.init = true; }
+  else { const e = Math.min(1, dt * 4); cam.z += (zWant - cam.z) * e; cam.x += (fx - cam.x) * e; cam.y += (fy - dh * .5 - cam.y) * e; }
+  const z = cam.z, cx = Math.min(W - W / (2 * z), Math.max(W / (2 * z), cam.x)), cy = Math.min(H - H / (2 * z), Math.max(H / (2 * z), cam.y));
+  c.clearRect(0, 0, W, H);
+  c.save(); c.translate(W / 2, H / 2); c.scale(z, z); c.translate(-cx, -cy);
+  drawShip(c, W, H, sp, z);
+  // gubben, med ett svagt sken så att han syns
+  const g = c.createRadialGradient(fx, fy - dh * .4, 0, fx, fy - dh * .4, dh * .9);
+  g.addColorStop(0, "rgba(226,234,246,.16)"); g.addColorStop(1, "rgba(226,234,246,0)");
+  c.fillStyle = g; c.beginPath(); c.arc(fx, fy - dh * .4, dh * .9, 0, 6.2832); c.fill();
+  person(c, fx, fy - dh * .045, dh * .94, act.a, dirNow, anim, lenSec < 200);
+  c.restore();
+
+  // vilket däck gubben är på, uppe till höger
+  const dk = "DÄCK " + Math.max(1, Math.min(DECKS, Math.round(me.d)));
+  c.font = "600 15px " + css("--display"); const tw = c.measureText(dk).width + 18;
+  c.fillStyle = "rgba(10,19,34,.78)"; c.beginPath(); c.roundRect(W - tw - 8, 8, tw, 26, 13); c.fill(); c.strokeStyle = css("--line"); c.lineWidth = 1; c.stroke();
+  c.fillStyle = css("--moon"); c.textAlign = "center"; c.fillText(dk, W - 8 - tw / 2, 26);
+  // Kristian mode: skylt med blinkande lampa och hur länge det är kvar
+  if (live){
+    const left = Math.max(0, END - pos), hh = Math.floor(left / 3600), mm = Math.floor(left % 3600 / 60), ss = Math.floor(left % 60);
+    const txt = "KRISTIAN MODE · KLAR OM " + (hh ? hh + " H " : "") + mm + " MIN " + (hh ? "" : ss + " S");
+    c.font = "600 14px " + css("--display"); const lw = c.measureText(txt).width + 34, lx = (W - lw) / 2, ly = H - 36;
+    c.fillStyle = "rgba(10,19,34,.85)"; c.beginPath(); c.roundRect(lx, ly, lw, 26, 13); c.fill(); c.strokeStyle = css("--line"); c.lineWidth = 1; c.stroke();
+    c.fillStyle = "rgba(255,90,90," + (.35 + .65 * (Math.sin(anim * 4) > 0 ? 1 : 0)) + ")"; c.beginPath(); c.arc(lx + 14, ly + 13, 4.5, 0, 6.2832); c.fill();
+    c.fillStyle = css("--ink"); c.textAlign = "left"; c.fillText(txt, lx + 25, ly + 18);
+  }
+  // liten översikt uppe till vänster när kameran är nära
+  if (z > 1.3){
+    const mw = Math.min(118, W * .3), mh = mw * H / W, mx = 8, my = 8;
+    c.fillStyle = "rgba(10,19,34,.78)"; c.beginPath(); c.roundRect(mx, my, mw, mh, 6); c.fill(); c.strokeStyle = css("--line"); c.lineWidth = 1; c.stroke();
+    c.save(); c.beginPath(); c.roundRect(mx, my, mw, mh, 6); c.clip(); c.translate(mx, my); c.scale(mw / W, mw / W);
+    const [hull, sup] = shipPaths(G0.X, G0.Y);
+    c.fillStyle = "#16263F"; c.fill(hull); c.fill(sup); c.strokeStyle = "rgba(132,152,179,.6)"; c.lineWidth = 3; c.stroke(hull); c.stroke(sup);
+    c.strokeStyle = "rgba(232,238,246,.5)"; c.lineWidth = 3; c.strokeRect(cx - W / (2 * z), cy - H / (2 * z), W / z, H / z);
+    c.fillStyle = css("--moon"); c.beginPath(); c.arc(fx, fy - dh * .4, 9, 0, 6.2832); c.fill();
+    c.restore();
+  }
+}
+
+function drawTl(){
+  const [c, W, H] = fit(tl);
+  c.clearRect(0, 0, W, H);
+  const y0 = 8, h = 22, x = t => 4 + (W - 8) * t / END;
+  segs.forEach(g => {
+    c.fillStyle = g[2] === "?" ? "#2A3A52" : P[g[2]].c;
+    const x0 = x(g[0]), x1 = x(g[1]);
+    if (g[0] < pos && g[1] > pos){ c.globalAlpha = 1; c.fillRect(x0, y0, x(pos) - x0, h); c.globalAlpha = .28; c.fillRect(x(pos), y0, x1 - x(pos), h); }
+    else { c.globalAlpha = g[1] <= pos ? 1 : .28; c.fillRect(x0, y0, Math.max(.6, x1 - x0), h); }
+  });
+  c.globalAlpha = 1;
+  c.font = "12px " + css("--body"); c.textAlign = "center";
+  const first = Math.ceil((T0 + 1) / 3600) * 3600 - T0;
+  for (let s = first; s < END; s += 3600){
+    c.fillStyle = "rgba(132,152,179,.5)"; c.fillRect(x(s), y0 + h, 1, 5);
+    c.fillStyle = css("--mute"); c.fillText(hhmm(s).slice(0, 2), Math.max(9, Math.min(W - 9, x(s))), y0 + h + 19);
+  }
+  c.fillStyle = css("--moon"); c.fillRect(x(pos) - 1, y0 - 5, 2, h + 10);
+  c.beginPath(); c.arc(x(pos), y0 - 5, 4, 0, 6.2832); c.fill();
+}
+
+let shownText = "";
+function drawText(){
+  const ck = clock5(Math.min(pos, END)), act = nowAct ? nowAct.text : "";
+  if (ck + act !== shownText){
+    shownText = ck + act;
+    document.getElementById("clock").textContent = ck; document.getElementById("where").textContent = act;
+    tl.setAttribute("aria-valuetext", "ungefär " + ck);
+  }
+  const sp = spent(pos);
+  order.forEach(k => {
+    const v = about(sp[k] || 0, k), r = rowRef[k];
+    r.bar.style.width = (100 * (sp[k] || 0) / maxTotal).toFixed(1) + "%";
+    if (v !== r.shown){ r.shown = v; r.val.textContent = v === "–" || v === "några min" ? v : "ca " + v; }
+  });
+}
+function draw(dt){ drawMap(dt); drawTl(); drawText(); }
+
+const playBtn = document.getElementById("play");
+function setPlaying(on){
+  playing = on; playBtn.textContent = on ? "Paus" : (pos >= END ? "Spela upp" : "Fortsätt");
+}
+// Bilden rör sig hela tiden (vågor, gubben som skurar eller sover), även när reprisen står still.
+let looping = false;
+function loop(){ if (!looping){ looping = true; lastTs = 0; requestAnimationFrame(frame); } }
+function frame(ts){
+  const dt = lastTs ? Math.min(.05, (ts - lastTs) / 1000) : 0; lastTs = ts;
+  if (playing){
+    pos = Math.min(END, pos + dt * END / lenSec);
+    if (pos >= END){ const t = target(); if (Math.abs(me.x - t.x) < .001 && Math.abs(me.d - t.d) < .001) setPlaying(false); }
+  }
+  draw(dt);
+  if (!reduce || playing) requestAnimationFrame(frame); else looping = false;
+}
+playBtn.addEventListener("click", () => { if (!playing && pos >= END){ pos = 0; me.init = false; } setPlaying(!playing); loop(); });
+document.getElementById("restart").addEventListener("click", () => { pos = 0; me.init = false; cam.init = false; setPlaying(true); loop(); });
+const zoomBtn = document.getElementById("zoom");
+zoomBtn.addEventListener("click", () => { wide = !wide; zoomBtn.setAttribute("aria-pressed", String(wide)); if (!playing) cam.init = false; if (reduce) draw(0); });
+// Kristian mode: natten i normal fart, en sekund i taget. Hela reprisen tar lika lång tid som natten.
+let live = false, lenBefore = 300;
+const kBtn = document.getElementById("kristian"), speedBtns = document.querySelectorAll(".speed button");
+function setLive(on){
+  if (on === live) return;
+  live = on; kBtn.setAttribute("aria-pressed", String(on));
+  if (on){ lenBefore = lenSec; lenSec = END; speedBtns.forEach(o => o.setAttribute("aria-pressed", "false")); }
+  else { lenSec = lenBefore; speedBtns.forEach(o => o.setAttribute("aria-pressed", String(Number(o.dataset.len) === lenSec))); }
+}
+kBtn.addEventListener("click", () => {
+  setLive(!live);
+  if (live){ if (pos >= END){ pos = 0; me.init = false; cam.init = false; } setPlaying(true); loop(); }
+});
+speedBtns.forEach(b => b.addEventListener("click", () => {
+  setLive(false); lenSec = Number(b.dataset.len);
+  speedBtns.forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+}));
+// Dra i tidslinjen för att spola
+function scrub(e){ const r = tl.getBoundingClientRect(); pos = Math.max(0, Math.min(END, (e.clientX - r.left - 4) / (r.width - 8) * END)); me.init = false; cam.init = false; if (reduce) draw(0); }
+let dragging = false;
+tl.addEventListener("pointerdown", e => { dragging = true; try { tl.setPointerCapture(e.pointerId); } catch(_){} setPlaying(false); scrub(e); });
+tl.addEventListener("pointermove", e => { if (dragging) scrub(e); });
+["pointerup","pointercancel"].forEach(n => tl.addEventListener(n, () => { dragging = false; playBtn.textContent = pos >= END ? "Spela upp" : "Fortsätt"; }));
+tl.addEventListener("keydown", e => {
+  const st = e.key === "ArrowRight" ? 300 : e.key === "ArrowLeft" ? -300 : 0; if (!st) return;
+  e.preventDefault(); setPlaying(false); pos = Math.max(0, Math.min(END, pos + st)); me.init = false; cam.init = false; playBtn.textContent = pos >= END ? "Spela upp" : "Fortsätt"; if (reduce) draw(0);
+});
+window.addEventListener("resize", () => { cam.init = false; if (reduce) draw(0); });
+
+// Sidan öppnar med natten ritad och börjar sedan spela. Typsnitten ska vara inne innan något ritas.
+let started = false;
+let stayEnd = false; try { stayEnd = sessionStorage.getItem("reprisEnd") === "1"; sessionStorage.removeItem("reprisEnd"); } catch(e){}
+function start(){
+  if (started) return; started = true; draw(0);
+  if (stayEnd){ loop(); return; }
+  if (!reduce){ pos = 0; me.init = false; cam.init = false; setPlaying(true); loop(); }
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(start); else start();
+setTimeout(start, 1500);
+
+// I natt: står reprisen vid slutet följer den med, en gång i minuten, så att gubben står där du är nu.
+if (D.date === TODAY) setInterval(() => {
+  if (!playing && !document.hidden && pos >= END - 1){ try { sessionStorage.setItem("reprisEnd", "1"); } catch(e){} location.reload(); }
+}, 60000);
+})();
+</script>
+</body>
+</html>
