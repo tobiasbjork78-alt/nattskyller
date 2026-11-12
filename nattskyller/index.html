@@ -392,6 +392,10 @@
       <button class="btn ghost" id="copydata" type="button">Kopiera all data</button>
     </div>
     <div class="sec">
+      <div class="sec-h">Tider från wifi-loggen</div>
+      <div class="card"><div class="gh" id="wifiwrap"></div></div>
+    </div>
+    <div class="sec">
       <div class="sec-h">Backup till GitHub</div>
       <div class="card"><div class="gh" id="ghwrap"></div></div>
     </div>
@@ -591,6 +595,9 @@ function finishTask(k){
 }
 function removeSession(id){
   if (!confirm("Ta bort mätningen?")) return;
+  const x = sessions.find(s => s.id === id);
+  // Wifi-mätningar räknas fram på nytt hela tiden; kom ihåg att just det besöket är borttaget.
+  if (x && x.auto){ wifiSkip[id.replace(/:\d+$/, "")] = 1; store.set(WFSKIP, JSON.stringify(wifiSkip)); }
   sessions = sessions.filter(s => s.id !== id); saveS(); renderAll();
 }
 
@@ -605,12 +612,12 @@ function stats(k){
 }
 function tonight(k){
   const xs = sessions.filter(s => s.d === isoDate && (k == null || s.k === k));
-  return { n: xs.length, sum: xs.reduce((a,s) => a + s.ms, 0) };
+  return { n: xs.length, sum: xs.reduce((a,s) => a + s.ms, 0), auto: xs.some(s => s.auto) };
 }
 
 function statLine(k){
   const st = el("span","tstat"), tn = tonight(k), s = stats(k);
-  if (tn.n){ st.appendChild(el("b", null, "✓ " + fmtDur(tn.sum) + " i natt")); }
+  if (tn.n){ st.appendChild(el("b", null, "✓ " + fmtDur(tn.sum) + " i natt" + (tn.auto ? " (wifi)" : ""))); }
   if (s.n){
     st.appendChild(document.createTextNode((tn.n ? " · " : "") + "snitt " + fmtDur(s.avg) + " · " + s.n + (s.n === 1 ? " natt" : " nätter")));
   }
@@ -788,7 +795,7 @@ function renderTimes(){
   last.forEach(s => {
     const r = el("div","srow"), l = el("div","sl");
     l.appendChild(document.createTextNode(s.t));
-    l.appendChild(el("small", null, (s.d === isoDate ? "i natt" : s.d) + " · " + hhmm(s.s) + "–" + hhmm(s.e)));
+    l.appendChild(el("small", null, (s.d === isoDate ? "i natt" : s.d) + " · " + hhmm(s.s) + "–" + hhmm(s.e) + (s.auto ? " · wifi" : "")));
     const x = el("button","x","×"); x.type = "button"; x.setAttribute("aria-label","Ta bort mätningen");
     x.addEventListener("click", () => removeSession(s.id));
     r.append(l, el("span","sv",fmtDur(s.ms)), x);
@@ -809,7 +816,7 @@ function tickClocks(){
   const k = runningKey();
   if (k) document.getElementById("nbclock").textContent = fmtClock(elapsed(run[k]));
 }
-function renderAll(){ renderToday(); renderWeek(); renderTimes(); renderNow(); scheduleSync(); syncRunNote(); }
+function renderAll(){ wifiApply(); renderToday(); renderWeek(); renderTimes(); renderNow(); renderWifi(); scheduleSync(); syncRunNote(); }
 
 document.getElementById("nbpause").addEventListener("click", () => { const k = runningKey(); if (k) pauseTask(k); });
 document.getElementById("nbdone").addEventListener("click", () => { const k = runningKey(); if (k) finishTask(k); });
@@ -956,7 +963,7 @@ function nightPayload(d){
     datum: d,
     slapptFranDisken: free[d] ? hhmm(free[d]) : null,
     slapptMs: free[d] || null,
-    matningar: xs.map(s => ({ moment: s.t, nyckel: s.k, start: hhmm(s.s), slut: hhmm(s.e), minuter: Math.round(s.ms/6000)/10, startMs: s.s, slutMs: s.e }))
+    matningar: xs.map(s => ({ moment: s.t, nyckel: s.k, start: hhmm(s.s), slut: hhmm(s.e), minuter: Math.round(s.ms/6000)/10, startMs: s.s, slutMs: s.e, wifi: s.auto ? true : undefined }))
   }, null, 1);
 }
 function ghDates(){
@@ -1078,6 +1085,190 @@ function renderGh(){
   act.append(now, ed); w.appendChild(act);
 }
 window.addEventListener("online", () => ghSyncNow(false));
+
+// ---------- Tider från wifi-loggen ----------
+// Appen Nattlogg lägger en wifi-avläsning var 30:e sekund i samma privata arkiv som backupen (wifi/ÅÅÅÅ-MM-DD/).
+// Här läses nattens logg, varje avläsning översätts till ett område och tiden i köken blir mätningar på Golv-raderna.
+// Reglerna (vilka sändare som hör till vilket område) ligger i regler.json i det privata arkivet, inte i koden.
+// Gäller först efter "Släppt från disken": under diskpasset går Skagerak-disken inte att skilja från Skagerak-köket.
+/*WIFI-MOTOR*/
+const WIFI_T = { tvattMin:-80, hyttMin:-65, massMin:-62, massOver:8, pizzanMin:-60, pizzanOver:8, brMin:-69 };
+const WIFI_AREA = { S: "SKAGERAK", K: "KULL", P: "PIZZAN" };
+function wifiPrep(R){
+  const map = {};
+  Object.keys(R.grupper || {}).forEach(g => (R.grupper[g] || []).forEach(x => { map[String(x).toLowerCase()] = g; }));
+  return { pre: String(R.prefix || "").toLowerCase(), map, t: Object.assign({}, WIFI_T, R.trosklar || {}) };
+}
+// En avläsning [[bssid,dBm,MHz],…] → S(kagerak) K(ull) P(izzan) B(R-disken) M(ässen) H(ytten) T(vätten) eller ?
+function wifiClass(aps, P){
+  const g = {}; let top = -99;
+  for (const a of aps || []){
+    const b = String(a[0]).toLowerCase(), d = Number(a[1]);
+    if (b.indexOf(P.pre) !== 0) continue;
+    if (d > top) top = d;
+    const k = P.map[b.slice(P.pre.length + 1, P.pre.length + 6)];
+    if (k && (g[k] == null || d > g[k])) g[k] = d;
+  }
+  const v = k => g[k] == null ? -99 : g[k], T = P.t;
+  const skag = v("skag"), kull = v("kull"), piz = v("pizzan"), mass = v("mass"), kx = Math.max(kull, piz);
+  if (v("tvatt") >= T.tvattMin && v("tvatt") >= top - 3) return "T";
+  if (v("hytt") >= T.hyttMin && v("hytt") >= top - 3) return "H";
+  if (mass >= T.massMin && mass >= skag + T.massOver && mass >= top - 3) return "M";
+  if (piz >= T.pizzanMin && piz >= kull + T.pizzanOver) return "P";
+  if (kull >= T.brMin && kull >= skag + 3) return "B";
+  if (kx > -99 && kx > skag && kx >= top - 6) return "K";
+  if (skag > -99 && skag >= kx && skag >= top - 8) return "S";
+  return "?";
+}
+// Besök i ett område. Upp till 2,5 min någon annanstans räknas som kvar (5 min om loggen bara har ett hål).
+// Ett besök räknas först när det varat 3 minuter, så att genomgång inte blir städtid.
+function wifiVisits(pts, code){
+  const out = []; let cur = null;
+  for (let i = 0; i < pts.length; i++){
+    if (pts[i][1] !== code) continue;
+    const t = pts[i][0];
+    if (cur){
+      if (t - cur.last <= (cur.li === i - 1 ? 300 : 150)){ cur.last = t; cur.li = i; cur.n++; continue; }
+      out.push(cur);
+    }
+    cur = { s: t, last: t, li: i, n: 1 };
+  }
+  if (cur) out.push(cur);
+  return out.map(v => {
+    const nx = pts[v.li + 1];
+    return { s: v.s * 1000, e: (nx && nx[0] - v.last <= 45 ? nx[0] : v.last + 30) * 1000, n: v.n };
+  }).filter(v => v.n >= 2 && v.e - v.s >= 180000);
+}
+// Klipp bort det som redan är mätt för hand (blocks = [[start,slut],…]) och allt före "släppt".
+function wifiCut(v, from, blocks){
+  let parts = [[Math.max(v.s, from), v.e]];
+  blocks.forEach(b => {
+    const nx = [];
+    parts.forEach(p => {
+      if (b[1] <= p[0] || b[0] >= p[1]){ nx.push(p); return; }
+      if (b[0] > p[0]) nx.push([p[0], b[0]]);
+      if (b[1] < p[1]) nx.push([b[1], p[1]]);
+    });
+    parts = nx;
+  });
+  return parts.filter(p => p[1] - p[0] >= 60000);
+}
+function wifiSessions(pts, d, from, blocks, skip){
+  const out = [];
+  Object.keys(WIFI_AREA).forEach(c => {
+    const room = WIFI_AREA[c], k = "golv:" + room.toLowerCase();
+    wifiVisits(pts, c).forEach(v => wifiCut(v, from, blocks).forEach(p => {
+      const id = "w:" + d + ":" + k + ":" + Math.round(v.s / 1000);
+      if (skip && skip[id]) return;
+      out.push({ id: id + ":" + Math.round(p[0] / 1000), k, t: "Golv – " + room, d, s: p[0], e: p[1], ms: p[1] - p[0], auto: 1 });
+    }));
+  });
+  return out.sort((a,b) => a.s - b.s);
+}
+/*/WIFI-MOTOR*/
+
+const WFKEY = "natskyll:wifi", WFCFG = "natskyll:wificfg", WFSKIP = "natskyll:wifiskip";
+let wifi = loadJson(WFKEY, null);
+if (!wifi || typeof wifi !== "object" || wifi.d !== isoDate || !Array.isArray(wifi.pts)) wifi = { d: isoDate, files: {}, pts: [], rules: wifi && wifi.rules || null, rulesAt: wifi && wifi.rulesAt || 0, at: 0 };
+let wifiCfg = Object.assign({ on: true }, loadJson(WFCFG, {}));
+let wifiSkip = loadJson(WFSKIP, {});
+if (!wifiSkip || typeof wifiSkip !== "object") wifiSkip = {};
+const wifiState = { busy: false, err: "" };
+function saveWifi(){ store.set(WFKEY, JSON.stringify(wifi)); }
+
+// Räkna om nattens wifi-mätningar. Körs före varje omritning; ändrar bara något om resultatet är nytt.
+function wifiApply(){
+  const old = sessions.filter(s => s.auto && s.d === isoDate);
+  let fresh = [];
+  if (wifiCfg.on && free[isoDate] && wifi.pts.length){
+    const blocks = sessions.filter(s => !s.auto && s.d === isoDate).map(s => [s.s, s.e]);
+    Object.keys(run).forEach(k => blocks.push([run[k].start, Date.now()]));
+    fresh = wifiSessions(wifi.pts, isoDate, free[isoDate], blocks, wifiSkip);
+  }
+  const sig = xs => xs.map(s => s.id + "/" + s.e).join("|");
+  if (sig(old) === sig(fresh)) return false;
+  sessions = sessions.filter(s => !(s.auto && s.d === isoDate)).concat(fresh);
+  saveS();
+  return true;
+}
+function ghRaw(path){
+  return ghApi(path, { headers: { Authorization: "Bearer " + gh.token, Accept: "application/vnd.github.raw+json", "X-GitHub-Api-Version": "2022-11-28" } });
+}
+async function wifiSync(manual){
+  if (!wifiCfg.on || !gh || !gh.token || !gh.repo || wifiState.busy) return;
+  if (!manual && Date.now() - (wifi.at || 0) < 120000) return;
+  if (navigator.onLine === false){ wifiState.err = "nät"; renderWifi(); return; }
+  wifiState.busy = true; renderWifi();
+  try {
+    if (manual || !wifi.rules || Date.now() - (wifi.rulesAt || 0) > 6*3600*1000){
+      const r = await ghRaw("/contents/regler.json");
+      if (r.status === 404) throw new Error("regler");
+      if (!r.ok) throw new Error(String(r.status));
+      const R = await r.json();
+      if (!wifi.rules || wifi.rules.v !== R.v){ wifi.files = {}; wifi.pts = []; }
+      wifi.rules = R; wifi.rulesAt = Date.now();
+    }
+    const P = wifiPrep(wifi.rules);
+    const l = await ghApi("/contents/wifi/" + isoDate);
+    if (l.status !== 404){
+      if (!l.ok) throw new Error(String(l.status));
+      const todo = (await l.json()).filter(f => /\.jsonl$/.test(f.name) && !wifi.files[f.name]).map(f => f.name).sort();
+      for (let i = 0; i < todo.length; i += 6){
+        await Promise.all(todo.slice(i, i + 6).map(async name => {
+          const r = await ghRaw("/contents/wifi/" + isoDate + "/" + name);
+          if (!r.ok) throw new Error(String(r.status));
+          (await r.text()).split("\n").forEach(line => {
+            line = line.trim(); if (!line) return;
+            try { const o = JSON.parse(line); if (o && o.t) wifi.pts.push([o.t, wifiClass(o.a, P)]); } catch(e){}
+          });
+          wifi.files[name] = 1;
+        }));
+        saveWifi();
+      }
+      wifi.pts.sort((a,b) => a[0] - b[0]);
+    }
+    wifi.at = Date.now(); wifiState.err = ""; saveWifi();
+    if (manual) showToast("Wifi-loggen hämtad");
+  } catch(e){ wifiState.err = e && /^(\d+|regler)$/.test(e.message) ? e.message : "nät"; }
+  wifiState.busy = false;
+  renderAll();
+}
+function renderWifi(){
+  const w = document.getElementById("wifiwrap"); if (!w) return;
+  w.innerHTML = "";
+  const act = el("div","actions");
+  const tog = el("button","btn ghost sm", wifiCfg.on ? "Stäng av" : "Slå på"); tog.type = "button";
+  tog.addEventListener("click", () => {
+    wifiCfg.on = !wifiCfg.on; store.set(WFCFG, JSON.stringify(wifiCfg));
+    renderAll(); if (wifiCfg.on) wifiSync(true);
+  });
+  if (!wifiCfg.on){
+    w.appendChild(el("p", null, "Av. Köken mäts bara när du trycker Starta."));
+    act.appendChild(tog); w.appendChild(act); return;
+  }
+  if (!gh){
+    w.appendChild(el("p", null, "Kräver backupen här under, eftersom wifi-loggen ligger i samma arkiv."));
+    act.appendChild(tog); w.appendChild(act); return;
+  }
+  const p = el("p"), auto = sessions.filter(s => s.auto && s.d === isoDate);
+  p.appendChild(el("b", null, "På"));
+  let txt = " · ";
+  if (wifiState.busy) txt += "hämtar …";
+  else if (!wifi.at) txt += "inte hämtad än";
+  else txt += wifi.pts.length + " avläsningar i natt · hämtad " + hhmm(wifi.at);
+  p.appendChild(document.createTextNode(txt));
+  w.appendChild(p);
+  if (wifiState.err && !wifiState.busy) w.appendChild(el("p","err", wifiState.err === "regler" ? "Hittar inte regler.json i arkivet." : ghErrText(wifiState.err)));
+  if (!free[isoDate]) w.appendChild(el("p", null, "Tryck \"Släppt nu\" på Idag-fliken. Tiden i köken räknas från det klockslaget."));
+  else if (auto.length){
+    const by = {};
+    auto.forEach(s => { by[s.t] = (by[s.t] || 0) + s.ms; });
+    w.appendChild(el("p", null, "I natt från loggen: " + Object.keys(by).map(t => t.replace("Golv – ","") + " " + fmtDur(by[t])).join(" · ")));
+  } else if (wifi.at) w.appendChild(el("p", null, "Inget köksbesök på minst 3 minuter efter " + hhmm(free[isoDate]) + " än."));
+  const now = el("button","btn go sm","Hämta nu"); now.type = "button";
+  now.addEventListener("click", () => wifiSync(true));
+  act.append(now, tog); w.appendChild(act);
+}
 
 // ---------- Släppt från disken (kort på Idag) ----------
 const freeEl = document.getElementById("free");
@@ -1303,10 +1494,12 @@ document.getElementById("weekday").textContent = WEEKDAYS[wd];
 document.getElementById("date").textContent = now.toLocaleDateString("sv-SE",{day:"numeric",month:"long"});
 renderAll(); renderWash(); renderFree(); renderPizza(); renderGh(); tickPizza(); applyPending();
 setInterval(() => { tickClocks(); tickWash(); tickFree(); tickPizza(); }, 1000);
+wifiSync(false);
+setInterval(() => { if (!document.hidden) wifiSync(false); }, 5*60*1000);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   if (shiftIso(Date.now()) !== isoDate){ location.reload(); return; }
-  tickClocks(); tickWash(); tickFree(); tickPizza(); scheduleSync(); applyPending();
+  tickClocks(); tickWash(); tickFree(); tickPizza(); scheduleSync(); applyPending(); wifiSync(false);
 });
 
 // ---------- Nedräkning till avmönstring ----------
