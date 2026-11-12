@@ -221,6 +221,7 @@
   .empty{padding:14px 0;color:var(--muted);font-size:13.5px;}
   .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
 
+  .autotime{font-weight:700;font-size:17px;color:var(--text);white-space:nowrap;padding:0 4px;font-variant-numeric:tabular-nums;}
   .gh{padding:14px 0;}
   .gh p{margin:0 0 10px;font-size:13.5px;color:var(--muted);}
   .gh p b{color:var(--text);font-weight:600;}
@@ -628,13 +629,15 @@ function tonight(k){
   return { n: xs.length, sum: xs.reduce((a,s) => a + s.ms, 0), auto: xs.some(s => s.auto) };
 }
 
-function statLine(k){
+// hint: text som visas när natten inte har någon tid än, t.ex. att golvet räknas ur wifi-loggen.
+function statLine(k, hint){
   const st = el("span","tstat"), tn = tonight(k), s = stats(k);
   if (tn.n){ st.appendChild(el("b", null, "✓ " + fmtDur(tn.sum) + " i natt" + (tn.auto ? " (wifi)" : ""))); }
+  else if (hint) st.appendChild(document.createTextNode(hint));
   if (s.n){
-    st.appendChild(document.createTextNode((tn.n ? " · " : "") + "snitt " + fmtDur(s.avg) + " · " + s.n + (s.n === 1 ? " natt" : " nätter")));
+    st.appendChild(document.createTextNode((tn.n || hint ? " · " : "") + "snitt " + fmtDur(s.avg) + " · " + s.n + (s.n === 1 ? " natt" : " nätter")));
   }
-  if (!tn.n && !s.n) st.textContent = "inte mätt än";
+  if (!tn.n && !s.n && !hint) st.textContent = "inte mätt än";
   return st;
 }
 
@@ -679,9 +682,16 @@ function taskRow(item){
     top.appendChild(head); li.appendChild(top);
     return li;
   }
-  lab.appendChild(statLine(item.k));
+  // Golvraderna: efter "Släppt nu" räknas tiden ur wifi-loggen, och då behövs ingen knapp.
+  // Före släppt finns knappen kvar för den som smygstartar golvet under diskpasset.
+  const wf = item.room ? wifiGolv() : "";
+  const auto = wf === "auto" && !r;
+  lab.appendChild(statLine(item.k, wf === "auto" ? "räknas ur wifi-loggen" : wf === "snart" ? "räknas ur loggen efter Släppt nu" : ""));
   const ctl = el("div","tctl");
-  if (!r){
+  if (auto){
+    const tn = tonight(item.k);
+    ctl.appendChild(el("span","autotime", tn.n ? fmtDur(tn.sum) : "–"));
+  } else if (!r){
     const b = el("button","btn go sm","Starta"); b.type = "button";
     b.addEventListener("click", () => startTask(item.k, item.t));
     ctl.appendChild(b);
@@ -1225,6 +1235,13 @@ if (!wifiSkip || typeof wifiSkip !== "object") wifiSkip = {};
 const wifiState = { busy: false, err: "" };
 function saveWifi(){ store.set(WFKEY, JSON.stringify(wifi)); }
 
+// Läget för golvraderna: "auto" = loggen räknar tiden nu, "snart" = den tar över vid Släppt nu, "" = bara för hand.
+// Finns ingen logg för natten (loggningen glömd eller avstängd) blir det "", så att knapparna finns kvar.
+function wifiGolv(){
+  if (!wifiCfg.on || !gh) return "";
+  if (!free[isoDate]) return "snart";
+  return wifi.pts.length ? "auto" : "";
+}
 // Räkna om nattens wifi-mätningar. Körs före varje omritning; ändrar bara något om resultatet är nytt.
 function wifiApply(){
   const old = sessions.filter(s => s.auto && s.d === isoDate);
