@@ -154,6 +154,37 @@ final class Www {
         return new WebResourceResponse(m, text ? "utf-8" : null, 200, "OK", headers, new ByteArrayInputStream(data));
     }
 
+    /**
+     * Titta efter en nyare sida nu (högst en gång i minuten). Används varje gång appen kommer fram:
+     * loggningen håller appen vid liv hela natten, så utan det här skulle sidan aldrig laddas om.
+     */
+    static void checkNow(final Context c, final Changed changed) {
+        final String rel = "index.html";
+        long now = System.currentTimeMillis();
+        synchronized (lastCheck) {
+            Long last = lastCheck.get(rel);
+            if (last != null && now - last < 60_000L) return;
+            lastCheck.put(rel, now);
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                byte[] current = local(c, rel);
+                byte[] fresh = fetch(rel, 10000);
+                if (fresh == null || current == null || Arrays.equals(fresh, current)) return;
+                String tail = new String(fresh, Math.max(0, fresh.length - 200), Math.min(200, fresh.length), java.nio.charset.StandardCharsets.UTF_8);
+                if (!tail.contains("</html>")) return;
+                save(c, rel, fresh);
+                // övriga sidor i samma mapp hämtas om nästa gång de öppnas
+                synchronized (lastCheck) {
+                    lastCheck.remove("repris.html");
+                    lastCheck.remove("sensor.html");
+                }
+                if (changed != null) changed.onChanged(rel);
+            }
+        }).start();
+    }
+
     /** Titta efter en nyare version i bakgrunden, högst var femte minut för sidan och en gång i timmen för övrigt. */
     private static void refreshLater(final Context c, final String rel, final byte[] current, final Changed changed) {
         long now = System.currentTimeMillis();

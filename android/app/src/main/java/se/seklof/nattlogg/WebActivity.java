@@ -125,6 +125,18 @@ public class WebActivity extends Activity {
         web.onResume();
         autoLog();
         web.evaluateJavascript("window.nattResume&&window.nattResume()", null);
+        // Varje gång appen kommer fram: finns en nyare sida på webben laddas den in direkt.
+        Www.checkNow(getApplicationContext(), new Www.Changed() {
+            @Override
+            public void onChanged(String rel) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (visible && web != null) web.reload();
+                    }
+                });
+            }
+        });
     }
 
     @Override

@@ -405,7 +405,7 @@
 
   <div class="toast" id="toast"></div>
 
-  <footer>Tiderna sparas i den här telefonen, och i ditt GitHub-arkiv om backup är påslagen. Nytt skiftdygn börjar kl 06:00. <a href="repris.html" class="quiet">Repris</a></footer>
+  <footer>Tiderna sparas i den här telefonen, och i ditt GitHub-arkiv om backup är påslagen. Nytt skiftdygn börjar kl 06:00. <a href="repris.html" class="quiet">Repris</a> <span id="buildstamp"></span></footer>
 </div>
 
 <div class="alarm" id="alarm" role="alertdialog" aria-label="Pizzalarm">
@@ -445,6 +445,10 @@ const store = (() => {
     set(k,v){ try { ok ? localStorage.setItem(k,v) : (mem[k]=v); } catch(e){ mem[k]=v; } }
   };
 })();
+// Versionsstämpel: visas längst ner under Tider. Ändras vid varje publicering.
+const BUILD = "12 nov 21:05";
+(() => { const b = document.getElementById("buildstamp"); if (b) b.textContent = "· version " + BUILD; })();
+
 // ---------- Riktiga appen ----------
 // Samma sida visas i Android-appen. Där finns bryggan window.Natt, som ger det en webbsida inte får göra:
 // larm som ringer med släckt skärm, wifi-loggen direkt ur telefonen och knappar på låsskärmen.
