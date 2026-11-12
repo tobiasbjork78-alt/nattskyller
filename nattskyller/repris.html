@@ -276,10 +276,11 @@ document.querySelector("main").removeAttribute("data-state");
 const P = {
   S:{n:"Skagerak", c:"#5AB4FF"}, B:{n:"BR-disken", c:"#A995FF"}, K:{n:"Kull", c:"#6EDC9A"}, P:{n:"Pizzan", c:"#FF8F5E"},
   M:{n:"Mässen", c:"#F59BC4"}, T:{n:"Tvätten, däck 1", c:"#4FD8D2"}, H:{n:"Hytten", c:"#B9C6DA"},
-  a:{n:"Okänd plats A", c:"#6B7C96"}, b:{n:"Okänd plats B", c:"#6B7C96"}
+  a:{n:"Grönan", c:"#8FD17A"}, b:{n:"Rökrummet", c:"#C9A27A"}
 };
-const SHORT = { S:"SKAGERAK", B:"BR-DISKEN", K:"KULL", P:"PIZZAN", M:"MÄSSEN", T:"TVÄTTEN", H:"HYTTEN", a:"A", b:"B" };
-const REST = { H:1 };   // rast: visas grövre. Mässen är jobb (disk), inte rast.
+const SHORT = { S:"SKAGERAK", B:"BR-DISKEN", K:"KULL", P:"PIZZAN", M:"MÄSSEN", T:"TVÄTTEN", H:"HYTTEN", a:"GRÖNAN", b:"RÖKRUM" };
+const REST = { H:1, a:1, b:1 };   // rast: visas grövre. Mässen är jobb (disk), inte rast.
+const UNNAMED = [];               // platser telefonen hittat som ännu saknar namn
 D.segs.forEach(g => { if (g[2] !== "?" && (!D.rooms[g[2]] || !P[g[2]])) g[2] = "?"; });
 const segs = D.segs, END = segs[segs.length-1][1], T0 = D.t0;
 const fmt = new Intl.DateTimeFormat("sv-SE", { hour:"2-digit", minute:"2-digit", timeZone:"Europe/Stockholm" });
@@ -313,7 +314,7 @@ order.forEach(k => {
 });
 
 const foundEl = document.getElementById("found");
-["a","b"].forEach(k => {
+UNNAMED.forEach(k => {
   const mine = segs.map((g,i) => [g,i]).filter(x => x[0][2] === k);
   if (!mine.length) return;
   const near = (i, step) => { for (let j = i + step; j >= 0 && j < segs.length; j += step){ const c = segs[j][2]; if (c !== "?" && c !== k) return P[c].n; } return ""; };
@@ -323,6 +324,7 @@ const foundEl = document.getElementById("found");
     ". En egen sändare hörs starkt här och ingen annanstans. Vad är det för ställe?";
   li.append(b, p); foundEl.appendChild(li);
 });
+if (!foundEl.children.length) foundEl.parentElement.hidden = true;
 
 // Sista timmen i mässen är stängningen: städa, torka och diska tills den är perfekt.
 const lastMess = segs.reduce((m, g) => g[2] === "M" ? g[1] : m, 0), lateMess = lastMess > 0 && /^0[1-5]/.test(hhmm(lastMess)), CLOSE_FROM = lateMess ? lastMess - 3600 : END + 1;
@@ -426,6 +428,8 @@ function doing(t){
   if (k === "S" && pos >= PIG_FROM) return { a: "pig", text: "Matar grisen med nattmaten" };
   if (k === "S") return free ? { a: "mop", text: "Golvet i Skagerak" } : { a: "dish", text: "Diskar i Skagerak" };
   if (k === "K" || k === "P") return free ? { a: "mop", text: "Golvet i " + P[k].n } : { a: "carry", text: "Lämnar disk i " + P[k].n };
+  if (k === "b") return { a: "stand", text: "Rast i rökrummet" };
+  if (k === "a") return { a: "stand", text: "I Grönan" };
   return { a: "stand", text: P[k].n };
 }
 
