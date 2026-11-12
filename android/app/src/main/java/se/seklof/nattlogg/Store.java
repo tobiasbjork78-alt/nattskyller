@@ -102,6 +102,15 @@ final class Store {
         }
     }
 
+    /**
+     * Går loggningen verkligen? Flaggan "running" kan bli kvar om systemet dödar tjänsten utan förvarning
+     * (t.ex. när appen uppdateras). Därför krävs också ett livstecken från tjänsten de senaste minuterna.
+     */
+    static boolean isLogging(Context c) {
+        SharedPreferences p = prefs(c);
+        return p.getBoolean("running", false) && System.currentTimeMillis() - p.getLong("beat", 0) < 150_000L;
+    }
+
     // ---------- Händelser från aviseringar (larm kvitterat, Klar/Paus) som sidan hämtar när den är framme ----------
     private static final Object EVLOCK = new Object();
 

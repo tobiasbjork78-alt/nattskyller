@@ -89,10 +89,11 @@ public class MainActivity extends Activity {
         toggle.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (Store.prefs(MainActivity.this).getBoolean("running", false)) {
+                if (Store.isLogging(MainActivity.this)) {
                     stopService(new Intent(MainActivity.this, LogService.class));
                     // Stoppad för hand: starta inte själv igen i natt.
-                    Store.prefs(MainActivity.this).edit().putString("autoOff", Store.shiftDate(System.currentTimeMillis())).apply();
+                    Store.prefs(MainActivity.this).edit().putBoolean("running", false)
+                            .putString("autoOff", Store.shiftDate(System.currentTimeMillis())).apply();
                     toast("Loggningen stoppad");
                     handler.postDelayed(new Runnable() {
                         @Override
@@ -258,7 +259,7 @@ public class MainActivity extends Activity {
 
     private void render() {
         SharedPreferences p = Store.prefs(this);
-        boolean running = p.getBoolean("running", false);
+        boolean running = Store.isLogging(this);
         long now = System.currentTimeMillis();
         StringBuilder s = new StringBuilder();
         s.append(running ? "● Loggar" : "○ Avstängd");

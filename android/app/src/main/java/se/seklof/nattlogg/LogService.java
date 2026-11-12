@@ -62,7 +62,7 @@ public class LogService extends Service {
                 ok = wifi.startScan();
             } catch (Exception ignored) {
             }
-            Store.prefs(LogService.this).edit().putBoolean("lastScanOk", ok).apply();
+            Store.prefs(LogService.this).edit().putBoolean("lastScanOk", ok).putLong("beat", System.currentTimeMillis()).apply();
             handler.postDelayed(this, SCAN_MS);
         }
     };
@@ -109,7 +109,8 @@ public class LogService extends Service {
 
             stopAt = nextFiveAm();
             Store.cleanNights(this);
-            Store.prefs(this).edit().putBoolean("running", true).putLong("startedAt", System.currentTimeMillis()).apply();
+            Store.prefs(this).edit().putBoolean("running", true).putLong("startedAt", System.currentTimeMillis())
+                    .putLong("beat", System.currentTimeMillis()).apply();
             handler.post(scanTick);
             handler.postDelayed(uploadTick, UPLOAD_MS);
         }

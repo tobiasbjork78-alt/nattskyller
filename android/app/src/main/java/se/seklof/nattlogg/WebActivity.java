@@ -166,7 +166,7 @@ public class WebActivity extends Activity {
     /** Öppnas appen under passet (16:00–04:30) startar loggningen själv, om den inte stoppats för hand i natt. */
     private void autoLog() {
         SharedPreferences p = Store.prefs(this);
-        if (p.getBoolean("running", false)) return;
+        if (Store.isLogging(this)) return;
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY), m = Calendar.getInstance().get(Calendar.MINUTE);
         boolean shift = h >= 16 || h < 4 || (h == 4 && m < 30);
         if (!shift) return;
@@ -217,7 +217,8 @@ public class WebActivity extends Activity {
 
     private void stopLogging() {
         stopService(new Intent(this, LogService.class));
-        Store.prefs(this).edit().putString("autoOff", Store.shiftDate(System.currentTimeMillis())).apply();
+        Store.prefs(this).edit().putBoolean("running", false)
+                .putString("autoOff", Store.shiftDate(System.currentTimeMillis())).apply();
         toast("Loggningen stoppad");
         web.postDelayed(new Runnable() {
             @Override
@@ -273,7 +274,7 @@ public class WebActivity extends Activity {
                 long now = System.currentTimeMillis();
                 boolean tonight = Store.shiftDate(now).equals(p.getString("shift", ""));
                 return new JSONObject()
-                        .put("logging", p.getBoolean("running", false))
+                        .put("logging", Store.isLogging(WebActivity.this))
                         .put("scans", tonight ? p.getInt("scans", 0) : 0)
                         .put("lastScan", tonight ? p.getLong("lastScan", 0) : 0)
                         .put("lastErr", p.getString("lastErr", ""))
