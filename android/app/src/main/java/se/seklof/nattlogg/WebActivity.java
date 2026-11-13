@@ -34,10 +34,12 @@ import java.util.List;
 public class WebActivity extends Activity {
     private static final int REQ_LOG = 7;
     private static final int REQ_NOTE = 8;
+    private static final int REQ_GPS = 9;
     private static WeakReference<WebActivity> current = new WeakReference<>(null);
 
     private WebView web;
     private boolean visible;
+    private boolean gpsWanted;
     private long loadedAt;
 
     /** Be sidan hämta nya händelser (larm kvitterat, Klar/Paus) om den är framme just nu. */
@@ -123,6 +125,7 @@ public class WebActivity extends Activity {
         super.onResume();
         visible = true;
         web.onResume();
+        if (gpsWanted) Gps.liveStart(this);
         autoLog();
         web.evaluateJavascript("window.nattResume&&window.nattResume()", null);
         // Varje gång appen kommer fram: finns en nyare sida på webben laddas den in direkt.
@@ -142,6 +145,7 @@ public class WebActivity extends Activity {
     @Override
     protected void onPause() {
         visible = false;
+        Gps.liveStop(this);
         web.onPause();
         super.onPause();
     }
@@ -243,6 +247,11 @@ public class WebActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_GPS) {
+            if (gpsWanted && visible) Gps.liveStart(this);
+            web.evaluateJavascript("window.nattResume&&window.nattResume()", null);
+            return;
+        }
         if (requestCode != REQ_LOG) return;
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             startLogging();
@@ -364,6 +373,39 @@ public class WebActivity extends Activity {
         @JavascriptInterface
         public void clearRunNote() {
             RunNote.clear(getApplicationContext());
+        }
+
+        /** Senaste GPS-läget, se Gps.last. */
+        @JavascriptInterface
+        public String gps() {
+            return Gps.last(WebActivity.this);
+        }
+
+        /** Sidan "Var är vi?" är framme: lyssna på GPS tills den stängs eller appen läggs undan. */
+        @JavascriptInterface
+        public void gpsOn() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    gpsWanted = true;
+                    if (!Gps.allowed(WebActivity.this)) {
+                        requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_GPS);
+                        return;
+                    }
+                    if (visible) Gps.liveStart(WebActivity.this);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void gpsOff() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    gpsWanted = false;
+                    Gps.liveStop(WebActivity.this);
+                }
+            });
         }
 
         @JavascriptInterface

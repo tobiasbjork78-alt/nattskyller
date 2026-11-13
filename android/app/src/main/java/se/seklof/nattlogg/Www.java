@@ -179,6 +179,7 @@ final class Www {
                 synchronized (lastCheck) {
                     lastCheck.remove("repris.html");
                     lastCheck.remove("sensor.html");
+                    lastCheck.remove("var.html");
                 }
                 if (changed != null) changed.onChanged(rel);
             }

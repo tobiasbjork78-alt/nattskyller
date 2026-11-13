@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Var är vi?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Samma värld som reprisen: natthav, sjökortsblått och en månfärgad båt. Rutten är en enda linje, start till mål. */
+  :root{
+    color-scheme: dark;
+    --deep:#0A1322;
+    --chart:#101D31;
+    --line:#22385A;
+    --ink:#E8EEF6;
+    --mute:#8498B3;
+    --moon:#F2B95A;
+    --wake:#3E6AA8;      /* sträckan bakom oss */
+    --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+    --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--deep);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;}
+  body{padding:20px 16px 40px;}
+  main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px;}
+  .back{display:inline-block;color:var(--mute);font-size:14px;text-decoration:none;margin-bottom:14px;padding:4px 0;}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--moon);outline-offset:2px;}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);font-variant-numeric:tabular-nums;}
+  h1{font-family:var(--display);font-weight:800;font-size:44px;line-height:.95;margin:4px 0 0;letter-spacing:.01em;text-transform:uppercase;text-wrap:balance;}
+  h2{font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:.06em;text-transform:uppercase;margin:6px 0 2px;}
+
+  .card{background:var(--chart);border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .abeam{font-family:var(--display);font-weight:800;font-size:38px;line-height:1;text-transform:uppercase;letter-spacing:.02em;color:var(--moon);text-wrap:balance;margin:2px 0 6px;}
+  .abeam-sub{color:var(--ink);font-size:15px;margin:0;}
+  .abeam-sub + .abeam-sub{color:var(--mute);margin-top:2px;}
+
+  /* Linjen: start till vänster, mål till höger, båten där vi är. */
+  .leg{margin:20px 0 6px;}
+  .leg-ends{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-bottom:8px;}
+  .leg-ends b{color:var(--ink);font-weight:600;}
+  .track{position:relative;height:10px;border-radius:5px;background:#172740;}
+  .track i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--wake);width:0;}
+  .track .boat{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:var(--moon);box-shadow:0 0 0 4px rgba(242,185,90,.22);left:0;}
+  .track .boat.guess{background:var(--chart);border:3px solid var(--moon);}
+  .track .tick{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--line);}
+  .leg-pct{font-size:13px;color:var(--mute);margin-top:10px;font-variant-numeric:tabular-nums;}
+
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:16px 0 0;padding:14px 0 0;border-top:1px solid var(--line);}
+  .stats div{min-width:0;}
+  .stats dt{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);}
+  .stats dd{margin:0;font-family:var(--display);font-weight:600;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .stats dd small{font-family:var(--body);font-weight:400;font-size:13px;color:var(--mute);margin-left:4px;}
+  .fix{font-size:13px;color:var(--mute);margin:14px 0 0;}
+  .fix.warn{color:var(--moon);}
+
+  .msg{background:var(--chart);border:1px solid var(--line);border-radius:14px;padding:16px;font-size:15px;}
+  .msg p{margin:0 0 10px;}
+  .msg p:last-child{margin:0;}
+  button{font:inherit;color:#1A1305;background:var(--moon);border:1px solid var(--moon);border-radius:999px;padding:9px 16px;cursor:pointer;font-weight:600;}
+  button.ghost{background:transparent;color:var(--ink);border-color:var(--line);font-weight:400;}
+  .msg a{color:var(--moon);}
+
+  /* Längs vägen: norr uppåt, Sverige till höger, Danmark och Norges västsida till vänster. */
+  .way{position:relative;height:880px;margin:6px 0 0;}
+  .way .spine{position:absolute;left:38%;top:0;bottom:0;width:4px;margin-left:-2px;border-radius:2px;background:#172740;}
+  .way .done{position:absolute;left:38%;width:4px;margin-left:-2px;border-radius:2px;background:var(--wake);}
+  .way .p{position:absolute;font-size:14px;line-height:16px;height:16px;margin-top:-8px;white-space:nowrap;color:var(--ink);}
+  .way .p.e{left:calc(38% + 16px);}
+  .way .p.w{right:calc(62% + 16px);text-align:right;color:var(--mute);}
+  .way .p::before{content:"";position:absolute;top:7px;width:8px;height:2px;background:var(--line);}
+  .way .p.e::before{left:-12px;}
+  .way .p.w::before{right:-12px;}
+  .way .p.past{opacity:.45;}
+  .way .p.at{color:var(--moon);font-weight:600;}
+  .way .p.port{font-family:var(--display);font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:.04em;left:calc(38% + 16px);}
+  .way .p.port::before{left:-19px;top:3px;width:10px;height:10px;border-radius:50%;background:var(--ink);}
+  .way .sea{position:absolute;right:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#4E6688;margin-top:-7px;}
+  .way .boat{position:absolute;left:38%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:var(--moon);box-shadow:0 0 0 5px rgba(242,185,90,.22);}
+  .way .boat.guess{background:var(--deep);border:3px solid var(--moon);}
+  .way .boat::after{content:"";position:absolute;left:50%;margin-left:-5px;border:5px solid transparent;}
+  .way .boat.n::after{top:-13px;border-bottom-color:var(--moon);}
+  .way .boat.s::after{bottom:-13px;border-top-color:var(--moon);}
+  .note{font-size:13px;color:var(--mute);margin:0;}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="back" href="index.html">‹ Tillbaka till Nattskyller</a>
+    <div class="eyebrow" id="eyebrow">Köpenhamn – Oslo</div>
+    <h1 id="title">Var är vi?</h1>
+  </header>
+
+  <section class="msg" id="msg" hidden></section>
+
+  <section class="card" id="card" hidden>
+    <div class="abeam" id="abeam"></div>
+    <p class="abeam-sub" id="abeam1"></p>
+    <p class="abeam-sub" id="abeam2"></p>
+
+    <div class="leg">
+      <div class="leg-ends"><span id="from"></span><b id="to"></b></div>
+      <div class="track" id="track"><i id="fill"></i><span class="boat" id="boat"></span></div>
+      <div class="leg-pct" id="pct"></div>
+    </div>
+
+    <dl class="stats">
+      <div><dt>Kommit</dt><dd id="sDone"></dd></div>
+      <div><dt>Kvar</dt><dd id="sLeft"></dd></div>
+      <div><dt>Fart</dt><dd id="sSpd"></dd></div>
+      <div><dt>Framme</dt><dd id="sEta"></dd></div>
+    </dl>
+    <p class="fix" id="fix"></p>
+  </section>
+
+  <section id="waySec">
+    <h2>Längs vägen</h2>
+    <div class="way" id="way"></div>
+  </section>
+  <p class="note">Rutten är ritad som en rak linje efter breddgrad, så avstånd och ankomsttid är ungefärliga. Inne i båten når satelliterna sällan fram – då räknar sidan framåt från senaste läget med farten vi hade.</p>
+</main>
+
+<script>
+"use strict";
+/* ---------- Rutten ---------- */
+// Ungefärlig farled Köpenhamn → Oslo, [lat, lon]. Breddgraden stiger hela vägen, så läget längs linjen bestäms av latituden.
+const R = [[55.7026,12.5932],[55.80,12.66],[55.90,12.63],[56.04,12.64],[56.15,12.50],[56.32,12.32],[56.70,11.95],[57.10,11.60],
+           [57.45,11.20],[57.78,10.85],[58.40,10.65],[59.02,10.55],[59.30,10.57],[59.45,10.58],[59.67,10.62],[59.80,10.58],[59.87,10.66],[59.9052,10.7445]];
+const rad = d => d * Math.PI / 180;
+function dist(a, b){ // km
+  const dl = rad(b[0]-a[0]), dn = rad(b[1]-a[1]);
+  const h = Math.sin(dl/2)**2 + Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dn/2)**2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+function bearing(a, b){
+  const y = Math.sin(rad(b[1]-a[1])) * Math.cos(rad(b[0]));
+  const x = Math.cos(rad(a[0]))*Math.sin(rad(b[0])) - Math.sin(rad(a[0]))*Math.cos(rad(b[0]))*Math.cos(rad(b[1]-a[1]));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+const KM = [0]; for (let i = 1; i < R.length; i++) KM.push(KM[i-1] + dist(R[i-1], R[i]));
+const TOTAL = KM[KM.length-1];
+function kmAtLat(lat){
+  if (lat <= R[0][0]) return 0;
+  if (lat >= R[R.length-1][0]) return TOTAL;
+  for (let i = 1; i < R.length; i++) if (lat <= R[i][0]) return KM[i-1] + (KM[i]-KM[i-1]) * (lat-R[i-1][0]) / (R[i][0]-R[i-1][0]);
+  return TOTAL;
+}
+function posAtKm(km){
+  km = Math.max(0, Math.min(TOTAL, km));
+  for (let i = 1; i < R.length; i++) if (km <= KM[i]) { const f = (km-KM[i-1]) / (KM[i]-KM[i-1]); return [R[i-1][0] + f*(R[i][0]-R[i-1][0]), R[i-1][1] + f*(R[i][1]-R[i-1][1])]; }
+  return R[R.length-1].slice();
+}
+
+/* ---------- Platser ---------- */
+// Svenska kusten (det vi ligger utanför), söder till norr.
+const SE = [["Landskrona",55.87,12.83],["Helsingborg",56.05,12.69],["Höganäs",56.20,12.55],["Kullen",56.30,12.45],["Båstad",56.43,12.85],
+            ["Halmstad",56.67,12.86],["Falkenberg",56.90,12.49],["Varberg",57.11,12.25],["Kungsbacka",57.49,12.08],["Göteborg",57.71,11.97],
+            ["Marstrand",57.89,11.58],["Lysekil",58.27,11.44],["Smögen",58.36,11.22],["Fjällbacka",58.60,11.28],["Strömstad",58.94,11.17]];
+// Norska sidan av Oslofjorden, österut.
+const NO = [["Fredrikstad",59.21,10.93],["Moss",59.43,10.66],["Drøbak",59.66,10.63]];
+// Västerut: Danmark, och Norges västsida i fjorden. Bara som landmärken på linjen.
+const WEST = [["Helsingör",56.04,12.61],["Anholt",56.71,11.57],["Läsö",57.27,11.00],["Frederikshavn",57.44,10.54],["Skagen",57.72,10.59],
+              ["Färder fyr",59.03,10.53],["Horten",59.42,10.48]];
+// Samma breddgrad inne i Sverige, när vi är norr om Strömstad.
+const INLAND = [["Säffle",59.13],["Örebro",59.27],["Stockholm",59.33],["Karlstad",59.38],["Västerås",59.61],["Arvika",59.65],["Uppsala",59.86]];
+const SEAS = [["Öresund",55.70,56.13],["Kattegatt",56.13,57.75],["Skagerrak",57.75,59.00],["Oslofjorden",59.00,59.91]];
+const NEAR = 0.05; // grader, ungefär 6 km: så nära i höjdled räknas som "utanför"
+
+/* ---------- Läget ---------- */
+const $ = id => document.getElementById(id);
+const APP = (() => { try { return window.Natt && typeof window.Natt.version === "function" ? window.Natt : null; } catch(e){ return null; } })();
+const HASGPS = !!(APP && typeof APP.gps === "function");
+let fix = null, meta = {ok:true, on:true}, demo = false, webErr = "";
+
+function readApp(){
+  try {
+    const o = JSON.parse(APP.gps() || "{}");
+    meta = {ok: o.ok !== false, on: o.on !== false};
+    if (o.t) fix = {t:o.t, lat:o.lat, lon:o.lon, spd:o.spd, brg:o.brg, acc:o.acc};
+  } catch(e){}
+}
+function startWeb(){
+  if (!navigator.geolocation) { webErr = "Den här webbläsaren har ingen platstjänst."; return; }
+  navigator.geolocation.watchPosition(p => {
+    const c = p.coords;
+    fix = {t:p.timestamp, lat:c.latitude, lon:c.longitude, spd:c.speed == null ? -1 : c.speed, brg:c.heading == null || isNaN(c.heading) ? -1 : c.heading, acc:c.accuracy};
+    webErr = "";
+  }, e => { webErr = e.code === 1 ? "Webbläsaren får inte läsa platsen. Tillåt plats för sidan och ladda om." : "Hittar inget läge än."; },
+  {enableHighAccuracy:true, maximumAge:5000, timeout:60000});
+}
+
+/* Riktningen: norrut = mot Oslo. Kursen avgör när vi rör oss; annars minns vi senaste. */
+const DKEY = "natskyll:var";
+function loadDir(){ try { const o = JSON.parse(localStorage.getItem(DKEY) || "null"); if (o && Date.now() - o.t < 20*3600e3) return o; } catch(e){} return null; }
+function saveDir(o){ try { localStorage.setItem(DKEY, JSON.stringify(o)); } catch(e){} }
+function direction(){
+  const mem = loadDir();
+  if (fix.spd > 1.5 && fix.brg >= 0) {
+    const c = Math.cos(rad(fix.brg));
+    if (Math.abs(c) > 0.35) { const d = c > 0 ? 1 : -1; if (!demo) saveDir({dir:d, t:fix.t, lat:fix.lat}); return d; }
+  }
+  // Utan kurs: jämför med ett äldre läge.
+  if (mem && mem.lat != null && Math.abs(fix.lat - mem.lat) > 0.02 && fix.t > mem.t) { const d = fix.lat > mem.lat ? 1 : -1; if (!demo) saveDir({dir:d, t:fix.t, lat:fix.lat}); return d; }
+  if (mem) return mem.dir;
+  if (!demo) saveDir({dir:0, t:fix.t, lat:fix.lat});
+  return 0;
+}
+
+/* ---------- Text ---------- */
+const pad = n => String(n).padStart(2, "0");
+const hm = ms => { const d = new Date(ms); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const sv = (n, dec) => n.toFixed(dec).replace(".", ",");
+function ago(ms){
+  const s = Math.round(ms / 1000);
+  if (s < 90) return s + " sekunder";
+  const m = Math.round(s / 60);
+  if (m < 90) return m + " min";
+  return sv(m / 60, 1) + " timmar";
+}
+function dur(min){
+  if (min < 60) return "ca " + Math.max(1, Math.round(min)) + " min";
+  const h = Math.floor(min / 60), m = Math.round(min - h*60);
+  return "ca " + h + " h" + (m ? " " + m + " min" : "");
+}
+function compass(b){ return ["norrut","åt nordost","österut","åt sydost","söderut","åt sydväst","västerut","åt nordväst"][Math.round(b / 45) % 8]; }
+function seaAt(lat){ for (const s of SEAS) if (lat < s[2]) return s[0]; return "Oslofjorden"; }
+
+/* Vad ligger vi utanför? Närmaste ort i höjdled, eller mellan två. */
+function abeam(lat, list){
+  let below = null, above = null;
+  for (const p of list) { if (p[1] <= lat) below = p; else if (!above) above = p; }
+  const near = [below, above].filter(Boolean).sort((a, b) => Math.abs(a[1]-lat) - Math.abs(b[1]-lat))[0];
+  if (near && Math.abs(near[1]-lat) <= NEAR) return {at:near};
+  return {below, above};
+}
+
+/* ---------- Längs vägen ---------- */
+const WAY_H = 880, PADY = 22;
+const yAt = km => PADY + (1 - km / TOTAL) * (WAY_H - 2*PADY);
+function buildWay(){
+  const w = $("way");
+  let h = '<span class="spine"></span><span class="done" id="wDone"></span>';
+  h += '<span class="p port" style="top:' + yAt(TOTAL) + 'px">Oslo</span>';
+  h += '<span class="p port" style="top:' + yAt(0) + 'px">Köpenhamn</span>';
+  const put = (list, cls) => list.forEach(p => { h += '<span class="p ' + cls + '" data-km="' + kmAtLat(p[1]).toFixed(1) + '" style="top:' + yAt(kmAtLat(p[1])).toFixed(1) + 'px">' + p[0] + '</span>'; });
+  put(SE, "e"); put(NO, "e"); put(WEST, "w");
+  SEAS.forEach(s => { h += '<span class="sea" style="top:' + yAt(kmAtLat((s[1]+s[2])/2)).toFixed(1) + 'px">' + s[0] + '</span>'; });
+  h += '<span class="boat" id="wBoat" hidden></span>';
+  w.innerHTML = h;
+}
+
+/* ---------- Rita ---------- */
+function showMsg(html){ $("msg").innerHTML = html; $("msg").hidden = false; }
+function render(){
+  if (HASGPS && !demo) readApp();
+  const now = Date.now();
+
+  if (!fix) {
+    $("card").hidden = true;
+    let m;
+    if (APP && !HASGPS) m = '<p>Appen i telefonen är för gammal för GPS. Installera den nya versionen över den gamla, så dyker läget upp här.</p><p><a href="https://github.com/tobiasbjork78-alt/nattskyller/releases/latest/download/nattlogg.apk">Hämta nya appen</a></p>';
+    else if (HASGPS && !meta.ok) m = '<p>Appen får inte läsa platsen. Tillåt exakt plats för Nattskyller i telefonens inställningar.</p>';
+    else if (HASGPS && !meta.on) m = '<p>Plats är avstängd i telefonen. Slå på den i snabbmenyn.</p>';
+    else if (webErr) m = '<p>' + webErr + '</p>';
+    else m = '<p><b>Söker satelliter …</b></p><p>Inne i båten når de sällan fram. Ställ dig vid ett fönster eller gå ut på däck en halv minut, så räknar sidan vidare därifrån.</p>';
+    showMsg(m + '<p><button class="ghost" id="demoBtn">Visa ett exempel</button></p>');
+    const b = $("demoBtn"); if (b) b.onclick = startDemo;
+    $("wBoat").hidden = true; $("wDone").style.height = "0";
+    return;
+  }
+
+  const age = Math.max(0, now - fix.t);
+  const dir = direction();
+  const km0 = kmAtLat(fix.lat);
+  // Räkna framåt från ett gammalt läge med farten vi hade, högst tre timmar.
+  const guess = age > 45e3;
+  const canReckon = guess && dir !== 0 && fix.spd > 1.5 && age < 3*3600e3;
+  const km = canReckon ? Math.max(0, Math.min(TOTAL, km0 + dir * fix.spd * age / 1e6)) : km0;
+  const here = canReckon ? posAtKm(km) : [fix.lat, fix.lon];
+  const lat = here[0];
+  const fresh = !guess || canReckon;   // går läget att lita på just nu?
+  const offRoute = dist([fix.lat, fix.lon], posAtKm(km0)) > 90 || fix.lat < 55.4 || fix.lat > 60.2;
+
+  const goal = dir >= 0 ? "Oslo" : "Köpenhamn", start = dir >= 0 ? "Köpenhamn" : "Oslo";
+  const done = dir >= 0 ? km : TOTAL - km, left = TOTAL - done;
+  const atPort = fix.spd >= 0 && fix.spd < 1 && (km < 4 || km > TOTAL - 4);
+
+  $("msg").hidden = true; $("card").hidden = false;
+  $("eyebrow").textContent = (demo ? "Exempel · " : "") + seaAt(lat) + " · " + hm(now);
+  $("title").textContent = atPort ? "I " + (km < 4 ? "Köpenhamn" : "Oslo") : dir === 0 ? "Var är vi?" : "Mot " + goal;
+
+  // Utanför vad?
+  let big, sub1 = "", sub2 = "";
+  const far = (p, l) => { const d = dist(here, [p[1], p[2]]); return p[0] + " ligger " + Math.round(d) + " km " + compass(bearing(here, [p[1], p[2]])); };
+  if (lat > 59.0) {
+    const a = abeam(lat, NO);
+    const n = a.at || [a.below, a.above].filter(Boolean).sort((x, y) => Math.abs(x[1]-lat) - Math.abs(y[1]-lat))[0];
+    big = a.at ? "Utanför " + n[0] : (lat > 59.75 ? "Inre Oslofjorden" : "Oslofjorden");
+    sub1 = n ? far(n) + "." : "";
+    const s = INLAND.slice().sort((x, y) => Math.abs(x[1]-lat) - Math.abs(y[1]-lat))[0];
+    sub2 = "I Sverige är vi i höjd med " + s[0] + ".";
+  } else {
+    const a = abeam(lat, SE);
+    if (a.at) { big = "Utanför " + a.at[0]; sub1 = far(a.at) + "."; }
+    else if (a.below && a.above) { big = "Mellan " + a.below[0] + " och " + a.above[0]; const n = Math.abs(a.below[1]-lat) < Math.abs(a.above[1]-lat) ? a.below : a.above; sub1 = far(n) + "."; }
+    else if (a.above) { big = "Söder om " + a.above[0]; sub1 = far(a.above) + "."; }
+    else { big = "Norr om Strömstad"; sub1 = far(SE[SE.length-1]) + "."; }
+    // Nästa ort i färdriktningen
+    if (dir !== 0 && fix.spd > 1.5 && fresh) {
+      const ahead = SE.concat(NO).map(p => ({p, d:(kmAtLat(p[1]) - km) * dir})).filter(o => o.d > 3).sort((x, y) => x.d - y.d)[0];
+      if (ahead) sub2 = "Nästa: " + ahead.p[0] + " om " + dur(ahead.d / (fix.spd * 3.6) * 60) + ".";
+    }
+  }
+  if (offRoute) { big = "Inte på rutten"; sub1 = "Läget ligger " + Math.round(dist([fix.lat, fix.lon], posAtKm(km0))) + " km från farleden mellan Köpenhamn och Oslo."; sub2 = ""; }
+  $("abeam").textContent = big; $("abeam1").textContent = sub1; $("abeam2").textContent = sub2; $("abeam2").hidden = !sub2;
+
+  // Linjen
+  const f = Math.max(0, Math.min(1, done / TOTAL));
+  $("from").textContent = start; $("to").textContent = dir === 0 ? "Oslo" : goal;
+  $("fill").style.width = (f * 100).toFixed(2) + "%";
+  $("boat").style.left = (f * 100).toFixed(2) + "%";
+  $("boat").className = "boat" + (guess ? " guess" : "");
+  $("pct").textContent = dir === 0 ? Math.round(km) + " km från Köpenhamn, " + Math.round(TOTAL - km) + " km från Oslo" : Math.round(f * 100) + " % av vägen · " + Math.round(TOTAL) + " km totalt";
+
+  // Siffrorna
+  const kn = fix.spd >= 0 ? fix.spd * 1.94384 : -1;
+  $("sDone").innerHTML = Math.round(done) + "<small>km</small>";
+  $("sLeft").innerHTML = Math.round(left) + "<small>km</small>";
+  $("sSpd").innerHTML = kn < 0 ? "–" : sv(kn, 1) + "<small>knop</small>";
+  $("sEta").innerHTML = dir !== 0 && fix.spd > 3 && left > 2 && fresh ? "<small style=\"margin:0 4px 0 0\">ca</small>" + hm(now + left / (fix.spd * 3.6) * 3600e3) : "–";
+
+  // Hur färskt är läget?
+  const fx = $("fix");
+  if (!guess) { fx.className = "fix"; fx.textContent = "GPS-läge från nyss" + (fix.acc < 500 ? ", på " + Math.round(fix.acc) + " m när" : "") + (fix.brg >= 0 && fix.spd > 1.5 ? ". Kurs " + Math.round(fix.brg) + "°, " + compass(fix.brg) + "." : "."); }
+  else if (canReckon) { fx.className = "fix"; fx.textContent = "Räknat framåt från läget kl " + hm(fix.t) + " (" + ago(age) + " sedan) med farten vi hade då. Ett fönster eller däck ger ett nytt läge."; }
+  else { fx.className = "fix warn"; fx.textContent = "Läget är från kl " + hm(fix.t) + " (" + ago(age) + " sedan). Ställ dig vid ett fönster eller gå ut på däck för ett nytt."; }
+  if (demo) fx.textContent = "Det här är ett exempel med påhittat läge. " + fx.textContent;
+
+  // Längs vägen
+  const wb = $("wBoat"); wb.hidden = false; wb.style.top = yAt(km).toFixed(1) + "px";
+  wb.className = "boat" + (guess ? " guess" : "") + (dir > 0 ? " n" : dir < 0 ? " s" : "");
+  const wd = $("wDone");
+  if (dir >= 0) { wd.style.top = yAt(km) + "px"; wd.style.height = (yAt(0) - yAt(km)) + "px"; }
+  else { wd.style.top = yAt(TOTAL) + "px"; wd.style.height = (yAt(km) - yAt(TOTAL)) + "px"; }
+  document.querySelectorAll("#way .p[data-km]").forEach(el => {
+    const k = +el.dataset.km, d = (k - km) * (dir || 1);
+    el.classList.toggle("past", dir !== 0 && d < -6);
+    el.classList.toggle("at", Math.abs(k - km) <= 6);
+  });
+}
+
+/* Exempel: utanför Varberg på väg norrut, så att sidan går att se utan satelliter. */
+function startDemo(){
+  demo = true;
+  const t0 = Date.now();
+  fix = {t:t0, lat:57.06, lon:11.64, spd:8.6, brg:340, acc:9};
+  setInterval(() => { const s = (Date.now() - t0) / 1000; fix = {t:Date.now(), lat:57.06 + s * 8.6 * 60 / 111000 * 0.94, lon:11.64 - s * 0.0009, spd:8.6, brg:340, acc:9}; }, 1000); // en minut i sekunden
+  render();
+}
+
+buildWay();
+if (HASGPS) { try { APP.gpsOn(); } catch(e){} }
+else if (!APP) startWeb();
+window.nattResume = () => { if (HASGPS && !demo) { try { APP.gpsOn(); } catch(e){} } render(); };
+window.addEventListener("pagehide", () => { if (HASGPS) { try { APP.gpsOff(); } catch(e){} } });
+render();
+setInterval(render, 1000);
+</script>
+</body>
+</html>

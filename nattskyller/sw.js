@@ -1,10 +1,11 @@
-const CACHE = "natskyll-v21";
+const CACHE = "natskyll-v22";
 // Egen cache för tryck på aviseringens knappar. Den ska överleva versionsbyten.
 const STATE = "natskyll-state";
 const ASSETS = [
   ".",
   "index.html",
   "repris.html",
+  "var.html",
   "manifest.webmanifest",
   "icon-192.png",
   "icon-512.png",

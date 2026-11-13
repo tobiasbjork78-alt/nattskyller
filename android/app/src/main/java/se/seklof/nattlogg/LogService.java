@@ -35,6 +35,8 @@ public class LogService extends Service {
     private static final long UPLOAD_MS = 10L * 60_000L;
     private static final long MIN_GAP_MS = 8_000L;
     private static final long STALE_US = 60L * 1_000_000L;
+    private static final long GPS_EVERY_MS = 5L * 60_000L;
+    private static final long GPS_LISTEN_MS = 25_000L;
 
     private Handler handler;
     private WifiManager wifi;
@@ -42,6 +44,7 @@ public class LogService extends Service {
     private boolean receiving;
     private long lastRecord;
     private long stopAt;
+    private long lastGps;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
@@ -63,6 +66,12 @@ public class LogService extends Service {
             } catch (Exception ignored) {
             }
             Store.prefs(LogService.this).edit().putBoolean("lastScanOk", ok).putLong("beat", System.currentTimeMillis()).apply();
+            // Var femte minut: lyssna en kort stund efter GPS, så att "Var är vi?" har ett färskt läge att räkna från.
+            long now = System.currentTimeMillis();
+            if (now - lastGps >= GPS_EVERY_MS) {
+                lastGps = now;
+                Gps.burst(LogService.this, GPS_LISTEN_MS);
+            }
             handler.postDelayed(this, SCAN_MS);
         }
     };
@@ -109,6 +118,7 @@ public class LogService extends Service {
 
             stopAt = nextFiveAm();
             Store.cleanNights(this);
+            Gps.clean(this);
             Store.prefs(this).edit().putBoolean("running", true).putLong("startedAt", System.currentTimeMillis())
                     .putLong("beat", System.currentTimeMillis()).apply();
             handler.post(scanTick);
