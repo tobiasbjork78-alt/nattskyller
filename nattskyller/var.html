@@ -127,6 +127,7 @@
 
 <script>
 "use strict";
+/*PLATS*/
 /* ---------- Rutten ---------- */
 // Ungefärlig farled Köpenhamn → Oslo, [lat, lon]. Breddgraden stiger hela vägen, så läget längs linjen bestäms av latituden.
 const R = [[55.7026,12.5932],[55.80,12.66],[55.90,12.63],[56.04,12.64],[56.15,12.50],[56.32,12.32],[56.70,11.95],[57.10,11.60],
@@ -180,6 +181,52 @@ function arrival(now){ // nästa ankomst enligt tidtabell, eller null när båte
 }
 const NEAR = 0.05; // grader, ungefär 6 km: så nära i höjdled räknas som "utanför"
 
+/* Vad ligger vi utanför? Närmaste ort i höjdled, eller mellan två. */
+function abeam(lat, list){
+  let below = null, above = null;
+  for (const p of list) { if (p[1] <= lat) below = p; else if (!above) above = p; }
+  const near = [below, above].filter(Boolean).sort((a, b) => Math.abs(a[1]-lat) - Math.abs(b[1]-lat))[0];
+  if (near && Math.abs(near[1]-lat) <= NEAR) return {at:near};
+  return {below, above};
+}
+function seaAt(lat){ for (const s of SEAS) if (lat < s[2]) return s[0]; return "Oslofjorden"; }
+function platsNamn(lat){
+  if (lat > 59.0) { const a = abeam(lat, NO); return a.at ? "Utanför " + a.at[0] : (lat > 59.75 ? "Inre Oslofjorden" : "Oslofjorden"); }
+  const a = abeam(lat, SE);
+  if (a.at) return "Utanför " + a.at[0];
+  if (a.below && a.above) return "Mellan " + a.below[0] + " och " + a.above[0];
+  if (a.above) return "Söder om " + a.above[0];
+  return "Norr om Strömstad";
+}
+
+/* Riktningen: norrut = mot Oslo. Kursen avgör när vi rör oss; annars minns vi senaste. */
+const DKEY = "natskyll:var";
+function loadDir(){ try { const o = JSON.parse(localStorage.getItem(DKEY) || "null"); if (o && Date.now() - o.t < 20*3600e3) return o; } catch(e){} return null; }
+function saveDir(o){ try { localStorage.setItem(DKEY, JSON.stringify(o)); } catch(e){} }
+function riktning(fix, minns){
+  const mem = loadDir();
+  if (fix.spd > 1.5 && fix.brg >= 0) {
+    const c = Math.cos(rad(fix.brg));
+    if (Math.abs(c) > 0.35) { const d = c > 0 ? 1 : -1; if (minns) saveDir({dir:d, t:fix.t, lat:fix.lat}); return d; }
+  }
+  // Utan kurs: jämför med ett äldre läge.
+  if (mem && mem.lat != null && Math.abs(fix.lat - mem.lat) > 0.02 && fix.t > mem.t) { const d = fix.lat > mem.lat ? 1 : -1; if (minns) saveDir({dir:d, t:fix.t, lat:fix.lat}); return d; }
+  if (mem) return mem.dir;
+  if (minns) saveDir({dir:0, t:fix.t, lat:fix.lat});
+  return 0;
+}
+/* Var är vi nu? Är läget gammalt räknar vi framåt med farten vi hade, högst tre timmar. */
+function platsNu(fix, now, minns){
+  const age = Math.max(0, now - fix.t), dir = riktning(fix, minns), km0 = kmAtLat(fix.lat);
+  const guess = age > 45e3;
+  const canReckon = guess && dir !== 0 && fix.spd > 1.5 && age < 3*3600e3;
+  const km = canReckon ? Math.max(0, Math.min(TOTAL, km0 + dir * fix.spd * age / 1e6)) : km0;
+  const here = canReckon ? posAtKm(km) : [fix.lat, fix.lon];
+  const offRoute = dist([fix.lat, fix.lon], posAtKm(km0)) > 90 || fix.lat < 55.4 || fix.lat > 60.2;
+  return {age, dir, km0, km, guess, canReckon, fresh: !guess || canReckon, here, offRoute};
+}
+/*/PLATS*/
+
 /* ---------- Läget ---------- */
 const $ = id => document.getElementById(id);
 const APP = (() => { try { return window.Natt && typeof window.Natt.version === "function" ? window.Natt : null; } catch(e){ return null; } })();
@@ -203,23 +250,6 @@ function startWeb(){
   {enableHighAccuracy:true, maximumAge:5000, timeout:60000});
 }
 
-/* Riktningen: norrut = mot Oslo. Kursen avgör när vi rör oss; annars minns vi senaste. */
-const DKEY = "natskyll:var";
-function loadDir(){ try { const o = JSON.parse(localStorage.getItem(DKEY) || "null"); if (o && Date.now() - o.t < 20*3600e3) return o; } catch(e){} return null; }
-function saveDir(o){ try { localStorage.setItem(DKEY, JSON.stringify(o)); } catch(e){} }
-function direction(){
-  const mem = loadDir();
-  if (fix.spd > 1.5 && fix.brg >= 0) {
-    const c = Math.cos(rad(fix.brg));
-    if (Math.abs(c) > 0.35) { const d = c > 0 ? 1 : -1; if (!demo) saveDir({dir:d, t:fix.t, lat:fix.lat}); return d; }
-  }
-  // Utan kurs: jämför med ett äldre läge.
-  if (mem && mem.lat != null && Math.abs(fix.lat - mem.lat) > 0.02 && fix.t > mem.t) { const d = fix.lat > mem.lat ? 1 : -1; if (!demo) saveDir({dir:d, t:fix.t, lat:fix.lat}); return d; }
-  if (mem) return mem.dir;
-  if (!demo) saveDir({dir:0, t:fix.t, lat:fix.lat});
-  return 0;
-}
-
 /* ---------- Text ---------- */
 const pad = n => String(n).padStart(2, "0");
 const hm = ms => { const d = new Date(ms); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
@@ -237,17 +267,6 @@ function dur(min){
   return "ca " + h + " h" + (m ? " " + m + " min" : "");
 }
 function compass(b){ return ["norrut","åt nordost","österut","åt sydost","söderut","åt sydväst","västerut","åt nordväst"][Math.round(b / 45) % 8]; }
-function seaAt(lat){ for (const s of SEAS) if (lat < s[2]) return s[0]; return "Oslofjorden"; }
-
-/* Vad ligger vi utanför? Närmaste ort i höjdled, eller mellan två. */
-function abeam(lat, list){
-  let below = null, above = null;
-  for (const p of list) { if (p[1] <= lat) below = p; else if (!above) above = p; }
-  const near = [below, above].filter(Boolean).sort((a, b) => Math.abs(a[1]-lat) - Math.abs(b[1]-lat))[0];
-  if (near && Math.abs(near[1]-lat) <= NEAR) return {at:near};
-  return {below, above};
-}
-
 /* ---------- Längs vägen ---------- */
 const WAY_H = 880, PADY = 22;
 const yAt = km => PADY + (1 - km / TOTAL) * (WAY_H - 2*PADY);
@@ -283,17 +302,8 @@ function render(){
     return;
   }
 
-  const age = Math.max(0, now - fix.t);
-  const dir = direction();
-  const km0 = kmAtLat(fix.lat);
-  // Räkna framåt från ett gammalt läge med farten vi hade, högst tre timmar.
-  const guess = age > 45e3;
-  const canReckon = guess && dir !== 0 && fix.spd > 1.5 && age < 3*3600e3;
-  const km = canReckon ? Math.max(0, Math.min(TOTAL, km0 + dir * fix.spd * age / 1e6)) : km0;
-  const here = canReckon ? posAtKm(km) : [fix.lat, fix.lon];
+  const {age, dir, km0, km, guess, canReckon, fresh, here, offRoute} = platsNu(fix, now, !demo);
   const lat = here[0];
-  const fresh = !guess || canReckon;   // går läget att lita på just nu?
-  const offRoute = dist([fix.lat, fix.lon], posAtKm(km0)) > 90 || fix.lat < 55.4 || fix.lat > 60.2;
 
   const goal = dir >= 0 ? "Oslo" : "Köpenhamn", start = dir >= 0 ? "Köpenhamn" : "Oslo";
   const done = dir >= 0 ? km : TOTAL - km, left = TOTAL - done;
@@ -325,6 +335,7 @@ function render(){
       if (ahead) sub2 = "Nästa: " + ahead.p[0] + " om " + dur(ahead.d / (fix.spd * 3.6) * 60) + ".";
     }
   }
+  big = platsNamn(lat);
   if (offRoute) { big = "Inte på rutten"; sub1 = "Läget ligger " + Math.round(dist([fix.lat, fix.lon], posAtKm(km0))) + " km från farleden mellan Köpenhamn och Oslo."; sub2 = ""; }
   $("abeam").textContent = big; $("abeam1").textContent = sub1; $("abeam2").textContent = sub2; $("abeam2").hidden = !sub2;
 
