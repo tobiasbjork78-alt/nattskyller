@@ -14,8 +14,6 @@ import android.os.Looper;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Båtens läge från telefonens GPS. Inne i skrovet når satelliterna sällan fram, så appen sparar
@@ -156,14 +154,9 @@ final class Gps {
         if (t - lastTrack < TRACK_GAP_MS) return;
         lastTrack = t;
         String line = "{\"t\":" + (t / 1000L) + ",\"la\":" + round(l.getLatitude(), 5) + ",\"lo\":" + round(l.getLongitude(), 5)
-                + ",\"s\":" + (l.hasSpeed() ? round(l.getSpeed(), 1) : -1) + ",\"b\":" + (l.hasBearing() ? Math.round(l.getBearing()) : -1) + "}\n";
-        try {
-            File f = new File(c.getApplicationContext().getFilesDir(), "gps-" + Store.shiftDate(t) + ".jsonl");
-            try (FileOutputStream out = new FileOutputStream(f, true)) {
-                out.write(line.getBytes(StandardCharsets.UTF_8));
-            }
-        } catch (Exception ignored) {
-        }
+                + ",\"s\":" + (l.hasSpeed() ? round(l.getSpeed(), 1) : -1) + ",\"b\":" + (l.hasBearing() ? Math.round(l.getBearing()) : -1)
+                + ",\"a\":" + Math.round(acc) + "}";
+        Store.appendGps(c, t, line);
     }
 
     private static double round(double v, int dec) {
@@ -206,7 +199,7 @@ final class Gps {
         if (fs == null) return;
         long old = System.currentTimeMillis() - 30L * 86_400_000L;
         for (File f : fs) {
-            if (f.getName().startsWith("gps-") && f.lastModified() < old) f.delete();
+            if (f.getName().startsWith("gps-2") && f.lastModified() < old) f.delete();
         }
     }
 }

@@ -63,6 +63,71 @@ final class Store {
         }
     }
 
+    // ---------- GPS-spåret ----------
+    private static final Object GLOCK = new Object();
+
+    private static File gpsPending(Context c) {
+        return new File(c.getApplicationContext().getFilesDir(), "gps-pending.jsonl");
+    }
+
+    /** Ett läge i minuten: sparas per skiftdygn i telefonen och väntar på uppladdning till gps/ i arkivet. */
+    static void appendGps(Context c, long t, String line) {
+        byte[] bytes = (line + "\n").getBytes(StandardCharsets.UTF_8);
+        synchronized (GLOCK) {
+            try (FileOutputStream out = new FileOutputStream(new File(c.getApplicationContext().getFilesDir(), "gps-" + shiftDate(t) + ".jsonl"), true)) {
+                out.write(bytes);
+            } catch (Exception ignored) {
+            }
+            try (FileOutputStream out = new FileOutputStream(gpsPending(c), true)) {
+                out.write(bytes);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** Skickar väntande GPS-lägen som en ny fil: gps/ÅÅÅÅ-MM-DD/HHMMSS.jsonl. Tyst: fel här ska inte synas som loggfel. */
+    static void uploadGps(Context c) {
+        File f = gpsPending(c);
+        byte[] data;
+        synchronized (GLOCK) {
+            if (!f.exists() || f.length() == 0) return;
+            if (prefs(c).getString("token", "").isEmpty()) return;
+            try {
+                data = readAll(f);
+            } catch (Exception e) {
+                return;
+            }
+        }
+        // Nätanropet görs utanför låset, så att ett nytt läge aldrig behöver vänta på uppladdningen.
+        try {
+            long now = System.currentTimeMillis();
+            String name = "gps/" + shiftDate(now) + "/" + new SimpleDateFormat("HHmmss", Locale.US).format(new Date(now)) + ".jsonl";
+            JSONObject body = new JSONObject();
+            body.put("message", "GPS-spår " + shiftDate(now));
+            body.put("content", Base64.encodeToString(data, Base64.NO_WRAP));
+            HttpURLConnection con = open(c, "/contents/" + name, "PUT");
+            con.setDoOutput(true);
+            con.setRequestProperty("Content-Type", "application/json");
+            try (OutputStream os = con.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            int code = con.getResponseCode();
+            con.disconnect();
+            if (code != 200 && code != 201) return;
+        } catch (Exception e) {
+            return;
+        }
+        synchronized (GLOCK) {
+            try {
+                byte[] cur = readAll(f);
+                try (FileOutputStream out = new FileOutputStream(f, false)) {
+                    if (cur.length > data.length) out.write(cur, data.length, cur.length - data.length);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
     /** Raderna från och med nummer "from" för ett skiftdygn, som JSON: {"n":antal totalt,"rows":[...]}. */
     static String rows(Context c, String shift, int from) {
         if (shift == null || !shift.matches("\\d{4}-\\d{2}-\\d{2}")) return "{\"n\":0,\"rows\":[]}";

@@ -155,6 +155,7 @@ public class LogService extends Service {
             @Override
             public void run() {
                 Store.upload(app);
+                Store.uploadGps(app);
             }
         }).start();
     }

@@ -52,6 +52,7 @@
   .stats dt{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);}
   .stats dd{margin:0;font-family:var(--display);font-weight:600;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .stats dd small{font-family:var(--body);font-weight:400;font-size:13px;color:var(--mute);margin-left:4px;}
+  .sched{font-size:14px;color:var(--ink);margin:14px 0 0;font-variant-numeric:tabular-nums;}
   .fix{font-size:13px;color:var(--mute);margin:14px 0 0;}
   .fix.warn{color:var(--moon);}
 
@@ -113,6 +114,7 @@
       <div><dt>Fart</dt><dd id="sSpd"></dd></div>
       <div><dt>Framme</dt><dd id="sEta"></dd></div>
     </dl>
+    <p class="sched" id="sched" hidden></p>
     <p class="fix" id="fix"></p>
   </section>
 
@@ -120,7 +122,7 @@
     <h2>Längs vägen</h2>
     <div class="way" id="way"></div>
   </section>
-  <p class="note">Rutten är ritad som en rak linje efter breddgrad, så avstånd och ankomsttid är ungefärliga. Inne i båten når satelliterna sällan fram – då räknar sidan framåt från senaste läget med farten vi hade.</p>
+  <p class="note">Rutten är ritad som en rak linje efter breddgrad, så avstånd är ungefärliga. Den byts mot båtens riktiga färdväg när appen har spelat in en resa åt vardera hållet. Inne i båten når satelliterna sällan fram – då räknar sidan framåt från senaste läget med farten vi hade.</p>
 </main>
 
 <script>
@@ -167,6 +169,15 @@ const WEST = [["Helsingör",56.04,12.61],["Anholt",56.71,11.57],["Läsö",57.27,
 // Samma breddgrad inne i Sverige, när vi är norr om Strömstad.
 const INLAND = [["Säffle",59.13],["Örebro",59.27],["Stockholm",59.33],["Karlstad",59.38],["Västerås",59.61],["Arvika",59.65],["Uppsala",59.86]];
 const SEAS = [["Öresund",55.70,56.13],["Kattegatt",56.13,57.75],["Skagerrak",57.75,59.00],["Oslofjorden",59.00,59.91]];
+// Tidtabellen: avgång 16:30 och ankomst 10:00 åt båda håll (gonordiccruiseline.com, nov 2026).
+const DEP_H = 16.5, ARR_H = 10;
+function arrival(now){ // nästa ankomst enligt tidtabell, eller null när båten ska ligga i hamn
+  const d = new Date(now), h = d.getHours() + d.getMinutes() / 60;
+  if (h >= ARR_H && h < DEP_H) return null;
+  const a = new Date(now); a.setHours(ARR_H, 0, 0, 0);
+  if (h >= DEP_H) a.setDate(a.getDate() + 1);
+  return a.getTime();
+}
 const NEAR = 0.05; // grader, ungefär 6 km: så nära i höjdled räknas som "utanför"
 
 /* ---------- Läget ---------- */
@@ -330,7 +341,15 @@ function render(){
   $("sDone").innerHTML = Math.round(done) + "<small>km</small>";
   $("sLeft").innerHTML = Math.round(left) + "<small>km</small>";
   $("sSpd").innerHTML = kn < 0 ? "–" : sv(kn, 1) + "<small>knop</small>";
-  $("sEta").innerHTML = dir !== 0 && fix.spd > 3 && left > 2 && fresh ? "<small style=\"margin:0 4px 0 0\">ca</small>" + hm(now + left / (fix.spd * 3.6) * 3600e3) : "–";
+  const arr = arrival(now), under = dir !== 0 && left > 2 && !atPort;
+  $("sEta").innerHTML = arr && under ? hm(arr) + "<small>tidtabell</small>" : "–";
+  // Jämför tidtabellen med farten just nu.
+  let sch = "";
+  if (under && fresh && fix.spd > 3) {
+    sch = "Med farten just nu: framme ca " + hm(now + left / (fix.spd * 3.6) * 3600e3) + ".";
+    if (arr && arr - now > 10*60e3) sch += " För att hinna till " + hm(arr) + " krävs " + sv(left / ((arr - now) / 3600e3) / 1.852, 1) + " knop i snitt resten av vägen.";
+  }
+  $("sched").textContent = sch; $("sched").hidden = !sch;
 
   // Hur färskt är läget?
   const fx = $("fix");
