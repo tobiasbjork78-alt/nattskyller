@@ -215,15 +215,42 @@ function riktning(fix, minns){
   if (minns) saveDir({dir:0, t:fix.t, lat:fix.lat});
   return 0;
 }
-/* Var är vi nu? Är läget gammalt räknar vi framåt med farten vi hade, högst tre timmar. */
+/* Avgången som hör till ett läge taget i hamn: samma dags 16:30, eller läget självt om båten ligger kvar efter det. */
+const RESA_MS = (24 - DEP_H + ARR_H) * 3600e3;   // 17,5 timmar enligt tidtabellen
+function avgang(t){
+  const d = new Date(t); d.setHours(Math.floor(DEP_H), Math.round((DEP_H % 1) * 60), 0, 0);
+  return t <= d.getTime() ? d.getTime() : t;
+}
+/* Var är vi nu?
+   - Färskt läge: det gäller.
+   - Gammalt läge i fart: räkna framåt med farten vi hade, högst tre timmar.
+   - Läge i hamn: båten ligger kvar till avgången. Därefter räknar vi efter tidtabellen tills ett riktigt läge kommer. */
 function platsNu(fix, now, minns){
-  const age = Math.max(0, now - fix.t), dir = riktning(fix, minns), km0 = kmAtLat(fix.lat);
+  const age = Math.max(0, now - fix.t), km0 = kmAtLat(fix.lat);
+  const offRoute = dist([fix.lat, fix.lon], posAtKm(km0)) > 90 || fix.lat < 55.4 || fix.lat > 60.2;
+  const still = fix.spd >= 0 && fix.spd < 1.5;
+  if (still && !offRoute && (km0 < 4 || km0 > TOTAL - 4)) {
+    const dir = km0 < 4 ? 1 : -1;                       // nästa resa går härifrån
+    if (minns) saveDir({dir, t:fix.t, lat:fix.lat});
+    const d = new Date(fix.t), h = d.getHours() + d.getMinutes() / 60;
+    const dagtid = h >= 9 && h < DEP_H + 0.75;          // läget är från liggetiden i hamn
+    const dep = dagtid ? avgang(fix.t) : null;
+    const base = {age, dir, km0, here:[fix.lat, fix.lon], offRoute, dep};
+    if (!dep) return Object.assign(base, {km:km0, guess:false, canReckon:false, fresh:age < 2*3600e3, atPort:true, byClock:false});
+    if (now < dep + 5*60e3) return Object.assign(base, {km:km0, guess:false, canReckon:false, fresh:true, atPort:true, byClock:false});
+    const gone = now - dep;
+    if (gone < RESA_MS) {
+      const k = TOTAL * gone / RESA_MS, km = dir > 0 ? k : TOTAL - k;
+      return Object.assign(base, {km, here:posAtKm(km), guess:true, canReckon:true, fresh:true, atPort:false, byClock:true});
+    }
+    return Object.assign(base, {km:km0, guess:true, canReckon:false, fresh:false, atPort:false, byClock:false});
+  }
+  const dir = riktning(fix, minns);
   const guess = age > 45e3;
   const canReckon = guess && dir !== 0 && fix.spd > 1.5 && age < 3*3600e3;
   const km = canReckon ? Math.max(0, Math.min(TOTAL, km0 + dir * fix.spd * age / 1e6)) : km0;
   const here = canReckon ? posAtKm(km) : [fix.lat, fix.lon];
-  const offRoute = dist([fix.lat, fix.lon], posAtKm(km0)) > 90 || fix.lat < 55.4 || fix.lat > 60.2;
-  return {age, dir, km0, km, guess, canReckon, fresh: !guess || canReckon, here, offRoute};
+  return {age, dir, km0, km, guess, canReckon, fresh: !guess || canReckon, here, offRoute, atPort:false, byClock:false, dep:null};
 }
 /*/PLATS*/
 
@@ -302,12 +329,13 @@ function render(){
     return;
   }
 
-  const {age, dir, km0, km, guess, canReckon, fresh, here, offRoute} = platsNu(fix, now, !demo);
+  const {age, dir, km0, km, guess, canReckon, fresh, here, offRoute, atPort, byClock, dep} = platsNu(fix, now, !demo);
   const lat = here[0];
 
   const goal = dir >= 0 ? "Oslo" : "Köpenhamn", start = dir >= 0 ? "Köpenhamn" : "Oslo";
   const done = dir >= 0 ? km : TOTAL - km, left = TOTAL - done;
-  const atPort = fix.spd >= 0 && fix.spd < 1 && (km < 4 || km > TOTAL - 4);
+  // Fart att räkna med: den mätta, eller tidtabellens snitt när vi räknar efter klockan.
+  const vKmh = byClock ? TOTAL / (RESA_MS / 3600e3) : fix.spd * 3.6, moving = byClock || fix.spd > 1.5;
 
   $("msg").hidden = true; $("card").hidden = false;
   $("eyebrow").textContent = (demo ? "Exempel · " : "") + seaAt(lat) + " · " + hm(now);
@@ -330,12 +358,17 @@ function render(){
     else if (a.above) { big = "Söder om " + a.above[0]; sub1 = far(a.above) + "."; }
     else { big = "Norr om Strömstad"; sub1 = far(SE[SE.length-1]) + "."; }
     // Nästa ort i färdriktningen
-    if (dir !== 0 && fix.spd > 1.5 && fresh) {
+    if (dir !== 0 && moving && fresh) {
       const ahead = SE.concat(NO).map(p => ({p, d:(kmAtLat(p[1]) - km) * dir})).filter(o => o.d > 3).sort((x, y) => x.d - y.d)[0];
-      if (ahead) sub2 = "Nästa: " + ahead.p[0] + " om " + dur(ahead.d / (fix.spd * 3.6) * 60) + ".";
+      if (ahead) sub2 = "Nästa: " + ahead.p[0] + " om " + dur(ahead.d / vKmh * 60) + ".";
     }
   }
   big = platsNamn(lat);
+  if (atPort) {
+    big = "I hamn";
+    sub1 = dep ? "Avgång " + hm(dep) + " mot " + goal + (dep - now > 60e3 ? ", om " + dur((dep - now) / 60e3).replace("ca ", "") : "") + "." : "Båten ligger still.";
+    sub2 = "";
+  }
   if (offRoute) { big = "Inte på rutten"; sub1 = "Läget ligger " + Math.round(dist([fix.lat, fix.lon], posAtKm(km0))) + " km från farleden mellan Köpenhamn och Oslo."; sub2 = ""; }
   $("abeam").textContent = big; $("abeam1").textContent = sub1; $("abeam2").textContent = sub2; $("abeam2").hidden = !sub2;
 
@@ -351,7 +384,7 @@ function render(){
   const kn = fix.spd >= 0 ? fix.spd * 1.94384 : -1;
   $("sDone").innerHTML = Math.round(done) + "<small>km</small>";
   $("sLeft").innerHTML = Math.round(left) + "<small>km</small>";
-  $("sSpd").innerHTML = kn < 0 ? "–" : sv(kn, 1) + "<small>knop</small>";
+  $("sSpd").innerHTML = kn < 0 || byClock ? "–" : sv(kn, 1) + "<small>knop</small>";
   const arr = arrival(now), under = dir !== 0 && left > 2 && !atPort;
   $("sEta").innerHTML = arr && under ? hm(arr) + "<small>tidtabell</small>" : "–";
   // Jämför tidtabellen med farten just nu.
@@ -364,7 +397,9 @@ function render(){
 
   // Hur färskt är läget?
   const fx = $("fix");
-  if (!guess) { fx.className = "fix"; fx.textContent = "GPS-läge från nyss" + (fix.acc < 500 ? ", på " + Math.round(fix.acc) + " m när" : "") + (fix.brg >= 0 && fix.spd > 1.5 ? ". Kurs " + Math.round(fix.brg) + "°, " + compass(fix.brg) + "." : "."); }
+  if (atPort) { fx.className = "fix"; fx.textContent = "Båten ligger still i hamn. Läget är från kl " + hm(fix.t) + (age > 90e3 ? " (" + ago(age) + " sedan)." : "."); }
+  else if (byClock) { fx.className = "fix"; fx.textContent = "Räknat efter tidtabellen från avgången kl " + hm(dep) + ", eftersom senaste GPS-läget är från hamnen. Det kan skilja ett par mil. Ett fönster eller däck ger ett riktigt läge."; }
+  else if (!guess) { fx.className = "fix"; fx.textContent = "GPS-läge från nyss" + (fix.acc < 500 ? ", på " + Math.round(fix.acc) + " m när" : "") + (fix.brg >= 0 && fix.spd > 1.5 ? ". Kurs " + Math.round(fix.brg) + "°, " + compass(fix.brg) + "." : "."); }
   else if (canReckon) { fx.className = "fix"; fx.textContent = "Räknat framåt från läget kl " + hm(fix.t) + " (" + ago(age) + " sedan) med farten vi hade då. Ett fönster eller däck ger ett nytt läge."; }
   else { fx.className = "fix warn"; fx.textContent = "Läget är från kl " + hm(fix.t) + " (" + ago(age) + " sedan). Ställ dig vid ett fönster eller gå ut på däck för ett nytt."; }
   if (demo) fx.textContent = "Det här är ett exempel med påhittat läge. " + fx.textContent;

@@ -468,7 +468,7 @@ const store = (() => {
   };
 })();
 // Versionsstämpel: visas längst ner under Tider. Ändras vid varje publicering.
-const BUILD = "14 nov 00:05";
+const BUILD = "14 nov 13:55";
 (() => { const b = document.getElementById("buildstamp"); if (b) b.textContent = "· version " + BUILD; })();
 
 // ---------- Riktiga appen ----------
@@ -1893,15 +1893,42 @@ function riktning(fix, minns){
   if (minns) saveDir({dir:0, t:fix.t, lat:fix.lat});
   return 0;
 }
-/* Var är vi nu? Är läget gammalt räknar vi framåt med farten vi hade, högst tre timmar. */
+/* Avgången som hör till ett läge taget i hamn: samma dags 16:30, eller läget självt om båten ligger kvar efter det. */
+const RESA_MS = (24 - DEP_H + ARR_H) * 3600e3;   // 17,5 timmar enligt tidtabellen
+function avgang(t){
+  const d = new Date(t); d.setHours(Math.floor(DEP_H), Math.round((DEP_H % 1) * 60), 0, 0);
+  return t <= d.getTime() ? d.getTime() : t;
+}
+/* Var är vi nu?
+   - Färskt läge: det gäller.
+   - Gammalt läge i fart: räkna framåt med farten vi hade, högst tre timmar.
+   - Läge i hamn: båten ligger kvar till avgången. Därefter räknar vi efter tidtabellen tills ett riktigt läge kommer. */
 function platsNu(fix, now, minns){
-  const age = Math.max(0, now - fix.t), dir = riktning(fix, minns), km0 = kmAtLat(fix.lat);
+  const age = Math.max(0, now - fix.t), km0 = kmAtLat(fix.lat);
+  const offRoute = dist([fix.lat, fix.lon], posAtKm(km0)) > 90 || fix.lat < 55.4 || fix.lat > 60.2;
+  const still = fix.spd >= 0 && fix.spd < 1.5;
+  if (still && !offRoute && (km0 < 4 || km0 > TOTAL - 4)) {
+    const dir = km0 < 4 ? 1 : -1;                       // nästa resa går härifrån
+    if (minns) saveDir({dir, t:fix.t, lat:fix.lat});
+    const d = new Date(fix.t), h = d.getHours() + d.getMinutes() / 60;
+    const dagtid = h >= 9 && h < DEP_H + 0.75;          // läget är från liggetiden i hamn
+    const dep = dagtid ? avgang(fix.t) : null;
+    const base = {age, dir, km0, here:[fix.lat, fix.lon], offRoute, dep};
+    if (!dep) return Object.assign(base, {km:km0, guess:false, canReckon:false, fresh:age < 2*3600e3, atPort:true, byClock:false});
+    if (now < dep + 5*60e3) return Object.assign(base, {km:km0, guess:false, canReckon:false, fresh:true, atPort:true, byClock:false});
+    const gone = now - dep;
+    if (gone < RESA_MS) {
+      const k = TOTAL * gone / RESA_MS, km = dir > 0 ? k : TOTAL - k;
+      return Object.assign(base, {km, here:posAtKm(km), guess:true, canReckon:true, fresh:true, atPort:false, byClock:true});
+    }
+    return Object.assign(base, {km:km0, guess:true, canReckon:false, fresh:false, atPort:false, byClock:false});
+  }
+  const dir = riktning(fix, minns);
   const guess = age > 45e3;
   const canReckon = guess && dir !== 0 && fix.spd > 1.5 && age < 3*3600e3;
   const km = canReckon ? Math.max(0, Math.min(TOTAL, km0 + dir * fix.spd * age / 1e6)) : km0;
   const here = canReckon ? posAtKm(km) : [fix.lat, fix.lon];
-  const offRoute = dist([fix.lat, fix.lon], posAtKm(km0)) > 90 || fix.lat < 55.4 || fix.lat > 60.2;
-  return {age, dir, km0, km, guess, canReckon, fresh: !guess || canReckon, here, offRoute};
+  return {age, dir, km0, km, guess, canReckon, fresh: !guess || canReckon, here, offRoute, atPort:false, byClock:false, dep:null};
 }
 return {TOTAL, platsNu, platsNamn, seaAt};
 })();
@@ -1913,12 +1940,20 @@ function renderPos(){
   let o = null; try { o = JSON.parse(APP.gps() || "{}"); } catch(e){}
   if (!o || !o.t) { box.hidden = true; return; }
   const now = Date.now(), st = Plats.platsNu(o, now, true);
-  const atPort = o.spd >= 0 && o.spd < 1 && (st.km < 4 || st.km > Plats.TOTAL - 4);
-  if (!st.fresh || st.offRoute || atPort) { box.hidden = true; return; }
+  if (!st.fresh || st.offRoute) { box.hidden = true; return; }
+  const kl = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
   const north = st.dir >= 0, done = north ? st.km : Plats.TOTAL - st.km, f = Math.max(0, Math.min(1, done / Plats.TOTAL));
-  document.getElementById("poseye").textContent = Plats.seaAt(st.here[0]) + (st.dir === 0 ? "" : " · mot " + (north ? "Oslo" : "Köpenhamn"));
-  document.getElementById("posat").textContent = Plats.platsNamn(st.here[0]);
-  document.getElementById("pospct").textContent = st.dir === 0 ? "" : Math.round(f * 100) + " % · " + Math.round(Plats.TOTAL - done) + " km kvar";
+  const goal = north ? "Oslo" : "Köpenhamn", start = north ? "Köpenhamn" : "Oslo";
+  if (st.atPort) {
+    // I hamn: var vi ligger och när vi går.
+    document.getElementById("poseye").textContent = "I hamn" + (st.dep ? " · mot " + goal : "");
+    document.getElementById("posat").textContent = start;
+    document.getElementById("pospct").textContent = st.dep ? "avgång " + kl(st.dep) : "";
+  } else {
+    document.getElementById("poseye").textContent = Plats.seaAt(st.here[0]) + (st.dir === 0 ? "" : " · mot " + goal);
+    document.getElementById("posat").textContent = Plats.platsNamn(st.here[0]);
+    document.getElementById("pospct").textContent = st.dir === 0 ? "" : (st.byClock ? "ca " : "") + Math.round(f * 100) + " % · " + (st.byClock ? "efter tidtabellen" : Math.round(Plats.TOTAL - done) + " km kvar");
+  }
   document.getElementById("posfrom").textContent = north ? "Köpenhamn" : "Oslo";
   document.getElementById("posto").textContent = north ? "Oslo" : "Köpenhamn";
   document.getElementById("posfill").style.width = (f * 100).toFixed(1) + "%";
