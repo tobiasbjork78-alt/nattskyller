@@ -35,7 +35,7 @@ public class LogService extends Service {
     private static final long UPLOAD_MS = 10L * 60_000L;
     private static final long MIN_GAP_MS = 8_000L;
     private static final long STALE_US = 60L * 1_000_000L;
-    private static final long GPS_EVERY_MS = 5L * 60_000L;
+    private static final int GPS_EVERY_MIN = 5;   // går att ändra från sidan (Natt.gpsEvery), se regler.json
     private static final long GPS_LISTEN_MS = 25_000L;
 
     private Handler handler;
@@ -66,9 +66,10 @@ public class LogService extends Service {
             } catch (Exception ignored) {
             }
             Store.prefs(LogService.this).edit().putBoolean("lastScanOk", ok).putLong("beat", System.currentTimeMillis()).apply();
-            // Var femte minut: lyssna en kort stund efter GPS, så att "Var är vi?" har ett färskt läge att räkna från.
+            // Med jämna mellanrum (fem minuter om inget annat sagts): lyssna en kort stund efter GPS, så att "Var är vi?" har ett färskt läge att räkna från.
             long now = System.currentTimeMillis();
-            if (now - lastGps >= GPS_EVERY_MS) {
+            long every = Math.max(2, Math.min(240, Store.prefs(LogService.this).getInt("gpsEveryMin", GPS_EVERY_MIN))) * 60_000L;
+            if (now - lastGps >= every) {
                 lastGps = now;
                 Gps.burst(LogService.this, GPS_LISTEN_MS);
             }
@@ -123,6 +124,7 @@ public class LogService extends Service {
                     .putLong("beat", System.currentTimeMillis()).apply();
             handler.post(scanTick);
             handler.postDelayed(uploadTick, UPLOAD_MS);
+            Knock.want(this, "logg", true);
         }
         return START_STICKY;
     }
@@ -138,6 +140,7 @@ public class LogService extends Service {
             }
             receiving = false;
         }
+        Knock.want(this, "logg", false);
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         Store.prefs(this).edit().putBoolean("running", false).apply();
         uploadAsync();

@@ -40,6 +40,7 @@ public class WebActivity extends Activity {
     private WebView web;
     private boolean visible;
     private boolean gpsWanted;
+    private volatile boolean knackWanted;
     private long loadedAt;
 
     /** Be sidan hämta nya händelser (larm kvitterat, Klar/Paus) om den är framme just nu. */
@@ -126,6 +127,7 @@ public class WebActivity extends Activity {
         visible = true;
         web.onResume();
         if (gpsWanted) Gps.liveStart(this);
+        if (knackWanted) Knock.want(this, "sida", true);
         autoLog();
         web.evaluateJavascript("window.nattResume&&window.nattResume()", null);
         // Varje gång appen kommer fram: finns en nyare sida på webben laddas den in direkt.
@@ -146,6 +148,7 @@ public class WebActivity extends Activity {
     protected void onPause() {
         visible = false;
         Gps.liveStop(this);
+        Knock.want(this, "sida", false);
         web.onPause();
         super.onPause();
     }
@@ -406,6 +409,40 @@ public class WebActivity extends Activity {
                     Gps.liveStop(WebActivity.this);
                 }
             });
+        }
+
+        /** Knackning: läget just nu, se Knock.state. */
+        @JavascriptInterface
+        public String knack() {
+            return Knock.state(WebActivity.this);
+        }
+
+        /** Slår på/av knackning och sätter känsligheten (m/s² mellan två avläsningar; lägre = känsligare). */
+        @JavascriptInterface
+        public void knackSet(boolean on, String thr) {
+            float t = Knock.THR_DEFAULT;
+            try {
+                t = Float.parseFloat(thr);
+            } catch (Exception ignored) {
+            }
+            Knock.set(WebActivity.this, on, t);
+        }
+
+        /** Sidan vill prova knackningar även när loggningen inte går. Stängs av när appen läggs undan. */
+        @JavascriptInterface
+        public void knackTest(boolean on) {
+            knackWanted = on;
+            Knock.want(WebActivity.this, "sida", on && visible);
+        }
+
+        /** Hur ofta loggtjänsten ska lyssna efter GPS, i minuter. */
+        @JavascriptInterface
+        public void gpsEvery(String min) {
+            try {
+                int m = Integer.parseInt(min);
+                if (m >= 2 && m <= 240) Store.prefs(WebActivity.this).edit().putInt("gpsEveryMin", m).apply();
+            } catch (Exception ignored) {
+            }
         }
 
         @JavascriptInterface

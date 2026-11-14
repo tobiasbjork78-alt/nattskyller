@@ -56,6 +56,17 @@
   .fix{font-size:13px;color:var(--mute);margin:14px 0 0;}
   .fix.warn{color:var(--moon);}
 
+  .knack h2{margin:0 0 6px;}
+  .knack p{margin:0 0 10px;font-size:15px;}
+  .buzz{list-style:none;margin:0 0 14px;padding:0;font-size:14px;color:var(--mute);}
+  .buzz li{padding:2px 0;}
+  .buzz b{color:var(--ink);font-weight:600;}
+  .krow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:15px;}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;}
+  .seg button{border:0;border-radius:0;background:transparent;color:var(--mute);font-weight:400;padding:8px 14px;}
+  .seg button[aria-pressed="true"]{background:var(--moon);color:#1A1305;font-weight:600;}
+  button.on{background:var(--moon);color:#1A1305;border-color:var(--moon);font-weight:600;}
+  .knack .fix{margin:6px 0 0;padding-top:10px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums;}
   .msg{background:var(--chart);border:1px solid var(--line);border-radius:14px;padding:16px;font-size:15px;}
   .msg p{margin:0 0 10px;}
   .msg p:last-child{margin:0;}
@@ -116,6 +127,23 @@
     </dl>
     <p class="sched" id="sched" hidden></p>
     <p class="fix" id="fix"></p>
+  </section>
+
+  <section class="card knack" id="knack" hidden>
+    <h2>Knacka tre gånger</h2>
+    <p>Knacka tre gånger på telefonen, så letar den efter ett nytt läge i en minut. Den kan ligga kvar i fickan.</p>
+    <ul class="buzz">
+      <li><b>Ett kort surr</b> – uppfattat, letar nu</li>
+      <li><b>Två korta surr</b> – nytt läge hittat</li>
+      <li><b>Ett långt surr</b> – hittade inget</li>
+    </ul>
+    <div class="krow"><span>Knackning</span><button type="button" id="kOn" class="ghost"></button></div>
+    <div class="krow"><span>Känslighet</span>
+      <span class="seg" id="kSeg" role="group" aria-label="Känslighet">
+        <button type="button" data-thr="9">Låg</button><button type="button" data-thr="6">Mellan</button><button type="button" data-thr="4">Hög</button>
+      </span>
+    </div>
+    <p class="fix" id="kLive"></p>
   </section>
 
   <section id="waySec">
@@ -309,9 +337,36 @@ function buildWay(){
   w.innerHTML = h;
 }
 
+/* ---------- Knackning ---------- */
+const HASKNACK = !!(APP && typeof APP.knack === "function");
+const hms = ms => { const d = new Date(ms); return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()); };
+function knackState(){ try { return JSON.parse(APP.knack() || "{}"); } catch(e){ return {}; } }
+function renderKnack(){
+  if (!HASKNACK) return;
+  const k = knackState();
+  $("knack").hidden = false;
+  const b = $("kOn"); b.textContent = k.on ? "På" : "Av"; b.className = k.on ? "on" : "ghost"; b.setAttribute("aria-pressed", k.on ? "true" : "false");
+  const thr = k.thr || 6, near = [9, 6, 4].sort((x, y) => Math.abs(x - thr) - Math.abs(y - thr))[0];
+  $("kSeg").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", +x.dataset.thr === near ? "true" : "false"));
+  let t;
+  if (!k.on) t = "Knackning är avstängd.";
+  else if (!k.listening) t = "Lyssnar inte just nu.";
+  else {
+    t = "Lyssnar. Prova: knacka tre gånger med en knoge på telefonen.";
+    if (k.peaks) t += " Uppfattade knackningar: " + k.peaks + ", senast " + hms(k.lastPeak) + " (styrka " + sv(k.lastMax || 0, 1) + ").";
+    if (k.triples) t += " Tre i rad: " + k.triples + ", senast " + hm(k.lastTriple) + (k.result === "hittat" ? " – nytt läge." : k.result === "letar" ? " – letar …" : k.result === "ingen" ? " – hittade inget." : ".");
+  }
+  $("kLive").textContent = t;
+}
+if (HASKNACK) {
+  $("kOn").onclick = () => { const k = knackState(); try { APP.knackSet(!k.on, String(k.thr || 6)); } catch(e){} renderKnack(); };
+  $("kSeg").querySelectorAll("button").forEach(x => x.onclick = () => { const k = knackState(); try { APP.knackSet(k.on !== false, x.dataset.thr); } catch(e){} renderKnack(); });
+}
+
 /* ---------- Rita ---------- */
 function showMsg(html){ $("msg").innerHTML = html; $("msg").hidden = false; }
 function render(){
+  renderKnack();
   if (HASGPS && !demo) readApp();
   const now = Date.now();
 
@@ -429,8 +484,9 @@ function startDemo(){
 buildWay();
 if (HASGPS) { try { APP.gpsOn(); } catch(e){} }
 else if (!APP) startWeb();
-window.nattResume = () => { if (HASGPS && !demo) { try { APP.gpsOn(); } catch(e){} } render(); };
-window.addEventListener("pagehide", () => { if (HASGPS) { try { APP.gpsOff(); } catch(e){} } });
+if (HASKNACK) { try { APP.knackTest(true); } catch(e){} }   // sidan lyssnar medan den är framme, så att det går att prova
+window.nattResume = () => { if (HASGPS && !demo) { try { APP.gpsOn(); } catch(e){} } if (HASKNACK) { try { APP.knackTest(true); } catch(e){} } render(); };
+window.addEventListener("pagehide", () => { if (HASGPS) { try { APP.gpsOff(); } catch(e){} } if (HASKNACK) { try { APP.knackTest(false); } catch(e){} } });
 render();
 setInterval(render, 1000);
 </script>

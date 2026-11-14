@@ -30,7 +30,9 @@ final class Gps {
 
     private static Listener live;
     private static Listener burst;
+    private static int burstId;
     private static long lastTrack;
+    private static Runnable seekFix, seekNone;
 
     private Gps() {
     }
@@ -58,8 +60,15 @@ final class Gps {
             if (l == null) return;
             save(app, l);
             fixes++;
+            // Någon väntar på besked (knackning): säg till när tre lägen kommit, då har fart och kurs satt sig.
+            if (seekFix != null && fixes >= 3) {
+                Runnable r = seekFix;
+                seekFix = null;
+                seekNone = null;
+                r.run();
+            }
             // Fart och kurs blir pålitliga först efter några lägen i rad.
-            if (isBurst && fixes >= 5) burstStop(app);
+            if (isBurst && fixes >= 5 && seekFix == null) burstStop(app);
         }
 
         @Override
@@ -110,16 +119,48 @@ final class Gps {
         if (m == null) return;
         try {
             burst = new Listener(app, true);
+            final int id = ++burstId;
             m.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, burst, Looper.getMainLooper());
             H.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    burstStop(app);
+                    if (id == burstId) burstStop(app);
                 }
             }, ms);
         } catch (Exception e) {
             burst = null;
         }
+    }
+
+    /**
+     * Leta efter ett nytt läge i högst ms millisekunder och ge besked: onFix när det kommit, onNone när tiden är ute.
+     * Anropas på skärmtråden.
+     */
+    static void seek(Context c, long ms, final Runnable onFix, final Runnable onNone) {
+        final Context app = c.getApplicationContext();
+        if (!allowed(app)) {
+            onNone.run();
+            return;
+        }
+        // En pågående kort lyssning byts mot en ny med full tid. Lyssnar sidan redan, räknar vi dess lägen.
+        if (live == null) {
+            burstStop(app);
+            burst(app, ms);
+        } else {
+            live.fixes = 0;
+        }
+        seekFix = onFix;
+        seekNone = onNone;
+        H.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (seekNone != onNone) return;   // redan besvarad, eller ersatt av en nyare sökning
+                seekFix = null;
+                seekNone = null;
+                if (live == null) burstStop(app);
+                onNone.run();
+            }
+        }, ms + 500);
     }
 
     private static void burstStop(Context c) {

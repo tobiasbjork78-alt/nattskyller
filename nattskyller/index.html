@@ -468,7 +468,7 @@ const store = (() => {
   };
 })();
 // Versionsstämpel: visas längst ner under Tider. Ändras vid varje publicering.
-const BUILD = "14 nov 13:55";
+const BUILD = "14 nov 17:35";
 (() => { const b = document.getElementById("buildstamp"); if (b) b.textContent = "· version " + BUILD; })();
 
 // ---------- Riktiga appen ----------
@@ -1295,6 +1295,8 @@ async function wifiRules(force){
   const R = await r.json();
   if (!wifi.rules || wifi.rules.v !== R.v){ wifi.files = {}; wifi.pts = []; wifi.n = 0; }
   wifi.rules = R; wifi.rulesAt = Date.now();
+  // Hur ofta appen lyssnar efter GPS under passet styrs härifrån: "gps": {"varMin": 30} i regler.json.
+  if (R.gps && R.gps.varMin) app("gpsEvery", String(R.gps.varMin));
 }
 async function wifiSync(manual){
   if (!wifiCfg.on || !gh || !gh.token || !gh.repo || wifiState.busy) return;
