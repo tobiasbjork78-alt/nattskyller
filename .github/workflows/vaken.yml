@@ -1,0 +1,64 @@
+name: Bygg Vaken
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android-vaken/**"
+      - ".github/workflows/vaken.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vaken
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Bygg APK
+        id: build
+        run: |
+          cd android-vaken
+          set -o pipefail
+          gradle --no-daemon --console=plain assembleRelease 2>&1 | tee ../build.log
+
+      # Fast tagg "vaken", så att länken alltid är densamma och Nattskyllers "latest" lämnas i fred.
+      - name: Publicera utgåva
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android-vaken/app/build/outputs/apk/release/app-release.apk vaken.apk
+          gh release view vaken >/dev/null 2>&1 || gh release create vaken \
+            --title "Vaken" --latest=false \
+            --notes "Vaken: ser när du vaknat och startar morgonbriefen. Ladda ner vaken.apk och installera över den gamla."
+          gh release upload vaken vaken.apk --clobber
+          gh release edit vaken --title "Vaken 0.1.${{ github.run_number }}" --latest=false
+
+      - name: Spara bygglogg
+        if: always()
+        run: |
+          mkdir out && cd out
+          cp ../build.log . 2>/dev/null || echo "ingen logg" > build.log
+          echo "run=${{ github.run_number }} sha=${{ github.sha }} build=${{ steps.build.outcome }} job=${{ job.status }}" > status.txt
+          ls -la ../android-vaken/app/build/outputs/apk/release/ >> status.txt 2>&1 || true
+          git init -q -b ci-vaken
+          git config user.name "vaken-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add -A && git commit -q -m "Bygge ${{ github.run_number }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-vaken

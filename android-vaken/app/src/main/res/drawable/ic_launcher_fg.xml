@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- En sol som går upp över en horisont. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#F2B95A" android:pathData="M36,62 A18,18 0 0 1 72,62 Z" />
+    <path android:strokeColor="#F2B95A" android:strokeWidth="3.5" android:strokeLineCap="round"
+        android:pathData="M54,34 L54,28 M36.5,41.5 L32.5,37.5 M71.5,41.5 L75.5,37.5 M29,58 L24,58 M79,58 L84,58" />
+    <path android:strokeColor="#E8EEF6" android:strokeWidth="3.5" android:strokeLineCap="round" android:pathData="M28,66 L80,66" />
+    <path android:strokeColor="#8498B3" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M38,74 L70,74" />
+</vector>

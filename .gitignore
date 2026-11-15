@@ -1,3 +1,6 @@
 android/.gradle/
 android/build/
 android/app/build/
+android-vaken/.gradle/
+android-vaken/build/
+android-vaken/app/build/
