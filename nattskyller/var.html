@@ -150,16 +150,17 @@
     <h2>Längs vägen</h2>
     <div class="way" id="way"></div>
   </section>
-  <p class="note">Rutten är ritad som en rak linje efter breddgrad, så avstånd är ungefärliga. Den byts mot båtens riktiga färdväg när appen har spelat in en resa åt vardera hållet. Inne i båten når satelliterna sällan fram – då räknar sidan framåt från senaste läget med farten vi hade.</p>
+  <p class="note">Farleden mellan Öresund och Skagerrak följer GPS-lägen från resan 14–15 november. Resten är uppritat för hand och byts ut när appen har spelat in mer. Inne i båten når satelliterna sällan fram – då räknar sidan framåt från senaste läget med farten vi hade.</p>
 </main>
 
 <script>
 "use strict";
 /*PLATS*/
 /* ---------- Rutten ---------- */
-// Ungefärlig farled Köpenhamn → Oslo, [lat, lon]. Breddgraden stiger hela vägen, så läget längs linjen bestäms av latituden.
-const R = [[55.7026,12.5932],[55.80,12.66],[55.90,12.63],[56.04,12.64],[56.15,12.50],[56.32,12.32],[56.70,11.95],[57.10,11.60],
-           [57.45,11.20],[57.78,10.85],[58.40,10.65],[59.02,10.55],[59.30,10.57],[59.45,10.58],[59.67,10.62],[59.80,10.58],[59.87,10.66],[59.9052,10.7445]];
+// Farled Köpenhamn → Oslo, [lat, lon]. Breddgraden stiger hela vägen, så läget längs linjen bestäms av latituden.
+// Öresund–Skagerrak (56,05–58,21) går genom riktiga GPS-lägen från resan 14–15 nov 2026; resten är uppritat för hand.
+const R = [[55.7026,12.5932],[55.80,12.66],[55.90,12.63],[56.052,12.657],[56.137,12.514],[56.32,12.30],[57.441,11.458],[57.813,11.101],
+           [57.886,11.059],[58.211,10.935],[59.02,10.55],[59.30,10.57],[59.45,10.58],[59.67,10.62],[59.80,10.58],[59.87,10.66],[59.9052,10.7445]];
 const rad = d => d * Math.PI / 180;
 function dist(a, b){ // km
   const dl = rad(b[0]-a[0]), dn = rad(b[1]-a[1]);
@@ -249,6 +250,20 @@ function avgang(t){
   const d = new Date(t); d.setHours(Math.floor(DEP_H), Math.round((DEP_H % 1) * 60), 0, 0);
   return t <= d.getTime() ? d.getTime() : t;
 }
+/* Var brukar båten vara så här långt efter avgång?
+   Norrut: tiderna från resan 14–15 nov 2026 (timmar efter 16:30 → breddgrad). Båten gick ut cirka 16:50, höll 9–10 knop
+   genom Öresund och 16–18 knop över Kattegatt. Söderut finns inget spår än: där räknar vi jämn fart. */
+const PROFIL_N = [[0.33,55.7026],[2.38,56.0519],[2.88,56.1368],[8.16,57.4413],[9.65,57.8133],[11.25,58.2108],[17.5,59.9052]];
+function kmEfterKlockan(dir, gone){
+  if (dir < 0) return TOTAL - TOTAL * gone / RESA_MS;
+  const h = gone / 3600e3;
+  if (h <= PROFIL_N[0][0]) return 0;
+  for (let i = 1; i < PROFIL_N.length; i++) if (h <= PROFIL_N[i][0]) {
+    const a = PROFIL_N[i-1], b = PROFIL_N[i], ka = kmAtLat(a[1]), kb = kmAtLat(b[1]);
+    return ka + (kb - ka) * (h - a[0]) / (b[0] - a[0]);
+  }
+  return TOTAL;
+}
 /* Var är vi nu?
    - Färskt läge: det gäller.
    - Gammalt läge i fart: räkna framåt med farten vi hade, högst tre timmar.
@@ -268,7 +283,7 @@ function platsNu(fix, now, minns){
     if (now < dep + 5*60e3) return Object.assign(base, {km:km0, guess:false, canReckon:false, fresh:true, atPort:true, byClock:false});
     const gone = now - dep;
     if (gone < RESA_MS) {
-      const k = TOTAL * gone / RESA_MS, km = dir > 0 ? k : TOTAL - k;
+      const km = kmEfterKlockan(dir, gone);
       return Object.assign(base, {km, here:posAtKm(km), guess:true, canReckon:true, fresh:true, atPort:false, byClock:true});
     }
     return Object.assign(base, {km:km0, guess:true, canReckon:false, fresh:false, atPort:false, byClock:false});
@@ -453,7 +468,7 @@ function render(){
   // Hur färskt är läget?
   const fx = $("fix");
   if (atPort) { fx.className = "fix"; fx.textContent = "Båten ligger still i hamn. Läget är från kl " + hm(fix.t) + (age > 90e3 ? " (" + ago(age) + " sedan)." : "."); }
-  else if (byClock) { fx.className = "fix"; fx.textContent = "Räknat efter tidtabellen från avgången kl " + hm(dep) + ", eftersom senaste GPS-läget är från hamnen. Det kan skilja ett par mil. Ett fönster eller däck ger ett riktigt läge."; }
+  else if (byClock) { fx.className = "fix"; fx.textContent = "Räknat efter klockan från avgången kl " + hm(dep) + (dir > 0 ? ", med tiderna från en tidigare resa" : "") + ", eftersom senaste GPS-läget är från hamnen. Det kan skilja " + (dir > 0 ? "någon mil" : "ett par mil") + ". Ett fönster eller däck ger ett riktigt läge."; }
   else if (!guess) { fx.className = "fix"; fx.textContent = "GPS-läge från nyss" + (fix.acc < 500 ? ", på " + Math.round(fix.acc) + " m när" : "") + (fix.brg >= 0 && fix.spd > 1.5 ? ". Kurs " + Math.round(fix.brg) + "°, " + compass(fix.brg) + "." : "."); }
   else if (canReckon) { fx.className = "fix"; fx.textContent = "Räknat framåt från läget kl " + hm(fix.t) + " (" + ago(age) + " sedan) med farten vi hade då. Ett fönster eller däck ger ett nytt läge."; }
   else { fx.className = "fix warn"; fx.textContent = "Läget är från kl " + hm(fix.t) + " (" + ago(age) + " sedan). Ställ dig vid ett fönster eller gå ut på däck för ett nytt."; }
