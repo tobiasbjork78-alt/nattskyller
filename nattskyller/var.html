@@ -58,6 +58,7 @@
 
   .knack h2{margin:0 0 6px;}
   .knack p{margin:0 0 10px;font-size:15px;}
+  .knack p.kh{margin:8px 0 2px;}
   .buzz{list-style:none;margin:0 0 14px;padding:0;font-size:14px;color:var(--mute);}
   .buzz li{padding:2px 0;}
   .buzz b{color:var(--ink);font-weight:600;}
@@ -130,12 +131,17 @@
   </section>
 
   <section class="card knack" id="knack" hidden>
-    <h2>Knacka tre gånger</h2>
-    <p>Knacka tre gånger på telefonen, så letar den efter ett nytt läge i en minut. Den kan ligga kvar i fickan.</p>
+    <h2>Knacka på telefonen</h2>
+    <p>Den kan ligga kvar i fickan. Svaret kommer som vibration.</p>
+    <p class="kh"><b>Tre knackningar</b> – leta nytt GPS-läge</p>
     <ul class="buzz">
-      <li><b>Ett kort surr</b> – uppfattat, letar nu</li>
-      <li><b>Två korta surr</b> – nytt läge hittat</li>
-      <li><b>Ett långt surr</b> – hittade inget</li>
+      <li><b>Tre korta surr</b> – uppfattat, letar nu</li>
+      <li><b>Två långa surr</b> – nytt läge hittat</li>
+      <li><b>Ett mycket långt surr</b> – hittade inget</li>
+    </ul>
+    <p class="kh"><b>Fyra knackningar</b> – Släppt nu</p>
+    <ul class="buzz">
+      <li><b>Fyra korta surr och ett långt</b> – Släppt är satt</li>
     </ul>
     <div class="krow"><span>Knackning</span><button type="button" id="kOn" class="ghost"></button></div>
     <div class="krow"><span>Känslighet</span>
@@ -250,23 +256,39 @@ function avgang(t){
   const d = new Date(t); d.setHours(Math.floor(DEP_H), Math.round((DEP_H % 1) * 60), 0, 0);
   return t <= d.getTime() ? d.getTime() : t;
 }
-/* Var brukar båten vara så här långt efter avgång?
-   Norrut: tiderna från resan 14–15 nov 2026 (timmar efter 16:30 → breddgrad). Båten gick ut cirka 16:50, höll 9–10 knop
-   genom Öresund och 16–18 knop över Kattegatt. Söderut finns inget spår än: där räknar vi jämn fart. */
-const PROFIL_N = [[0.33,55.7026],[2.38,56.0519],[2.88,56.1368],[8.16,57.4413],[9.65,57.8133],[11.25,58.2108],[17.5,59.9052]];
-function kmEfterKlockan(dir, gone){
-  if (dir < 0) return TOTAL - TOTAL * gone / RESA_MS;
-  const h = gone / 3600e3;
-  if (h <= PROFIL_N[0][0]) return 0;
-  for (let i = 1; i < PROFIL_N.length; i++) if (h <= PROFIL_N[i][0]) {
-    const a = PROFIL_N[i-1], b = PROFIL_N[i], ka = kmAtLat(a[1]), kb = kmAtLat(b[1]);
-    return ka + (kb - ka) * (h - a[0]) / (b[0] - a[0]);
-  }
-  return TOTAL;
+/* Hur en resa brukar gå: timmar efter verklig avgång → breddgrad.
+   Norrut ur resan 14–15 nov 2026: ut ur Köpenhamn cirka 16:50, 9–10 knop genom Öresund, 16–18 knop över Kattegatt,
+   förtöjd i Oslo 10:21. Söderut finns inget spår än: där räknar vi jämn fart över tidtabellens 17,5 timmar. */
+const PROFIL_N = [[0,55.7026],[2.05,56.0519],[2.55,56.1368],[7.83,57.4413],[9.32,57.8133],[10.92,58.2108],[17.52,59.9052]];
+const _prof = {};
+function profil(dir){ // [[timmar in i resan, km från starthamnen]]
+  const k = dir > 0 ? "n" : "s";
+  if (!_prof[k]) _prof[k] = dir > 0 ? PROFIL_N.map(p => [p[0], kmAtLat(p[1])]) : [[0, 0], [RESA_MS / 3600e3, TOTAL]];
+  return _prof[k];
 }
+function hVidKm(P, d){
+  if (d <= 0) return 0;
+  for (let i = 1; i < P.length; i++) if (d <= P[i][1]) return P[i-1][0] + (P[i][0] - P[i-1][0]) * (d - P[i-1][1]) / (P[i][1] - P[i-1][1]);
+  return P[P.length-1][0];
+}
+function kmVidH(P, h){
+  if (h <= 0) return 0;
+  for (let i = 1; i < P.length; i++) if (h <= P[i][0]) return P[i-1][1] + (P[i][1] - P[i-1][1]) * (h - P[i-1][0]) / (P[i][0] - P[i-1][0]);
+  return P[P.length-1][1];
+}
+const resaMs = dir => profil(dir)[profil(dir).length-1][0] * 3600e3;
+/* Läget längs linjen så här långt efter avgång. */
+function kmEfterKlockan(dir, gone){ const d = kmVidH(profil(dir), gone / 3600e3); return dir > 0 ? d : TOTAL - d; }
+/* Var är vi ms senare, om resan går som den brukar? */
+function framat(dir, km0, ms){
+  const P = profil(dir), d = kmVidH(P, hVidKm(P, dir > 0 ? km0 : TOTAL - km0) + ms / 3600e3);
+  return dir > 0 ? d : TOTAL - d;
+}
+/* Tid kvar till hamn från km, om resan går som den brukar. */
+function restid(dir, km){ const P = profil(dir); return (P[P.length-1][0] - hVidKm(P, dir > 0 ? km : TOTAL - km)) * 3600e3; }
 /* Var är vi nu?
    - Färskt läge: det gäller.
-   - Gammalt läge i fart: räkna framåt med farten vi hade, högst tre timmar.
+   - Gammalt läge i fart: räkna framåt med farten vi hade den första halvtimmen, sedan som resan brukar gå.
    - Läge i hamn: båten ligger kvar till avgången. Därefter räknar vi efter tidtabellen tills ett riktigt läge kommer. */
 function platsNu(fix, now, minns){
   const age = Math.max(0, now - fix.t), km0 = kmAtLat(fix.lat);
@@ -282,7 +304,7 @@ function platsNu(fix, now, minns){
     if (!dep) return Object.assign(base, {km:km0, guess:false, canReckon:false, fresh:age < 2*3600e3, atPort:true, byClock:false});
     if (now < dep + 5*60e3) return Object.assign(base, {km:km0, guess:false, canReckon:false, fresh:true, atPort:true, byClock:false});
     const gone = now - dep;
-    if (gone < RESA_MS) {
+    if (gone < resaMs(dir)) {
       const km = kmEfterKlockan(dir, gone);
       return Object.assign(base, {km, here:posAtKm(km), guess:true, canReckon:true, fresh:true, atPort:false, byClock:true});
     }
@@ -290,10 +312,17 @@ function platsNu(fix, now, minns){
   }
   const dir = riktning(fix, minns);
   const guess = age > 45e3;
-  const canReckon = guess && dir !== 0 && fix.spd > 1.5 && age < 3*3600e3;
-  const km = canReckon ? Math.max(0, Math.min(TOTAL, km0 + dir * fix.spd * age / 1e6)) : km0;
+  // Ett läge utan fart (första läget i en lyssning saknar ofta fart) räknas helt efter hur resan brukar gå.
+  const noSpd = fix.spd < 0 && km0 > 4 && km0 < TOTAL - 4;
+  let canReckon = guess && dir !== 0 && (fix.spd > 1.5 || noSpd) && age < 20*3600e3, km = km0;
+  if (canReckon) {
+    const first = noSpd ? 0 : Math.min(age, 30*60e3);
+    km = Math.max(0, Math.min(TOTAL, km0 + dir * Math.max(0, fix.spd) * first / 1e6));
+    if (age > first) km = framat(dir, km, age - first);
+    if (km <= 0.5 || km >= TOTAL - 0.5) canReckon = false;   // enligt klockan är vi redan framme: då vet vi inte mer
+  }
   const here = canReckon ? posAtKm(km) : [fix.lat, fix.lon];
-  return {age, dir, km0, km, guess, canReckon, fresh: !guess || canReckon, here, offRoute, atPort:false, byClock:false, dep:null};
+  return {age, dir, km0, km: canReckon ? km : km0, guess, canReckon, fresh: !guess || canReckon, here, offRoute, atPort:false, byClock:false, dep:null};
 }
 /*/PLATS*/
 
@@ -367,9 +396,11 @@ function renderKnack(){
   if (!k.on) t = "Knackning är avstängd.";
   else if (!k.listening) t = "Lyssnar inte just nu.";
   else {
-    t = "Lyssnar. Prova: knacka tre gånger med en knoge på telefonen.";
+    t = "Lyssnar. Prova: knacka med en knoge på telefonen.";
     if (k.peaks) t += " Uppfattade knackningar: " + k.peaks + ", senast " + hms(k.lastPeak) + " (styrka " + sv(k.lastMax || 0, 1) + ").";
     if (k.triples) t += " Tre i rad: " + k.triples + ", senast " + hm(k.lastTriple) + (k.result === "hittat" ? " – nytt läge." : k.result === "letar" ? " – letar …" : k.result === "ingen" ? " – hittade inget." : ".");
+    if (k.quads) t += " Fyra i rad: " + k.quads + ", senast " + hm(k.lastQuad) + ".";
+    if (k.skarpt === false) t += " Wifi-loggen går inte nu, så fyra knackningar är bara ett prov och sätter inte Släppt.";
   }
   $("kLive").textContent = t;
 }
@@ -456,12 +487,13 @@ function render(){
   $("sLeft").innerHTML = Math.round(left) + "<small>km</small>";
   $("sSpd").innerHTML = kn < 0 || byClock ? "–" : sv(kn, 1) + "<small>knop</small>";
   const arr = arrival(now), under = dir !== 0 && left > 2 && !atPort;
-  $("sEta").innerHTML = arr && under ? hm(arr) + "<small>tidtabell</small>" : "–";
-  // Jämför tidtabellen med farten just nu.
+  // Ankomst: så lång tid som resan brukar ta härifrån. Tidtabellen och farten just nu står bredvid.
+  const eta = under && fresh ? now + restid(dir, km) : null;
+  $("sEta").innerHTML = eta ? "<small style=\"margin:0 4px 0 0\">ca</small>" + hm(eta) : arr && under ? hm(arr) + "<small>tidtabell</small>" : "–";
   let sch = "";
-  if (under && fresh && fix.spd > 3) {
-    sch = "Med farten just nu: framme ca " + hm(now + left / (fix.spd * 3.6) * 3600e3) + ".";
-    if (arr && arr - now > 10*60e3) sch += " För att hinna till " + hm(arr) + " krävs " + sv(left / ((arr - now) / 3600e3) / 1.852, 1) + " knop i snitt resten av vägen.";
+  if (eta) {
+    if (arr) sch = "Tidtabellen säger " + hm(arr) + ".";
+    if (!guess && fix.spd > 3) sch += (sch ? " " : "") + "Med farten just nu hela vägen: ca " + hm(now + left / (fix.spd * 3.6) * 3600e3) + ".";
   }
   $("sched").textContent = sch; $("sched").hidden = !sch;
 
@@ -470,7 +502,7 @@ function render(){
   if (atPort) { fx.className = "fix"; fx.textContent = "Båten ligger still i hamn. Läget är från kl " + hm(fix.t) + (age > 90e3 ? " (" + ago(age) + " sedan)." : "."); }
   else if (byClock) { fx.className = "fix"; fx.textContent = "Räknat efter klockan från avgången kl " + hm(dep) + (dir > 0 ? ", med tiderna från en tidigare resa" : "") + ", eftersom senaste GPS-läget är från hamnen. Det kan skilja " + (dir > 0 ? "någon mil" : "ett par mil") + ". Ett fönster eller däck ger ett riktigt läge."; }
   else if (!guess) { fx.className = "fix"; fx.textContent = "GPS-läge från nyss" + (fix.acc < 500 ? ", på " + Math.round(fix.acc) + " m när" : "") + (fix.brg >= 0 && fix.spd > 1.5 ? ". Kurs " + Math.round(fix.brg) + "°, " + compass(fix.brg) + "." : "."); }
-  else if (canReckon) { fx.className = "fix"; fx.textContent = "Räknat framåt från läget kl " + hm(fix.t) + " (" + ago(age) + " sedan) med farten vi hade då. Ett fönster eller däck ger ett nytt läge."; }
+  else if (canReckon) { fx.className = "fix"; fx.textContent = "Räknat framåt från läget kl " + hm(fix.t) + " (" + ago(age) + " sedan) " + (age > 30*60e3 || fix.spd < 0 ? "efter hur resan brukar gå" : "med farten vi hade då") + ". Ett fönster eller däck ger ett nytt läge."; }
   else { fx.className = "fix warn"; fx.textContent = "Läget är från kl " + hm(fix.t) + " (" + ago(age) + " sedan). Ställ dig vid ett fönster eller gå ut på däck för ett nytt."; }
   if (demo) fx.textContent = "Det här är ett exempel med påhittat läge. " + fx.textContent;
 

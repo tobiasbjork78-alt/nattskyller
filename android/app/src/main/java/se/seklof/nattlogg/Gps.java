@@ -183,11 +183,13 @@ final class Gps {
         float acc = l.hasAccuracy() ? l.getAccuracy() : 999f;
         long t = l.getTime();
         if (acc > 150f && t - p.getLong("t", 0) < 120_000L) return;
+        // Första läget i en lyssning saknar ofta fart och kurs: behåll då dem vi hade, om de är färska.
+        boolean keep = t - p.getLong("t", 0) < 600_000L;
         p.edit()
                 .putLong("la", Double.doubleToRawLongBits(l.getLatitude()))
                 .putLong("lo", Double.doubleToRawLongBits(l.getLongitude()))
-                .putFloat("spd", l.hasSpeed() ? l.getSpeed() : -1f)
-                .putFloat("brg", l.hasBearing() ? l.getBearing() : -1f)
+                .putFloat("spd", l.hasSpeed() ? l.getSpeed() : keep ? p.getFloat("spd", -1f) : -1f)
+                .putFloat("brg", l.hasBearing() ? l.getBearing() : keep ? p.getFloat("brg", -1f) : -1f)
                 .putFloat("acc", acc)
                 .putLong("t", t)
                 .apply();

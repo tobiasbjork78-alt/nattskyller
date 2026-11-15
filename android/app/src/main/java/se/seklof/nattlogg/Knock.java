@@ -19,16 +19,20 @@ import org.json.JSONObject;
 import java.util.HashSet;
 
 /**
- * Tre knackningar på telefonen = leta efter ett nytt GPS-läge. Telefonen kan ligga kvar i fickan.
+ * Knackningar på telefonen som knappar. Telefonen kan ligga kvar i fickan.
  *
- * Svaret kommer som vibration:
- *   ett kort surr   = knackningarna uppfattades, letar nu
- *   två korta surr  = nytt läge hittat
- *   ett långt surr  = hittade inget (inne i båten, eller plats avstängd)
+ *   Tre knackningar  = leta efter ett nytt GPS-läge
+ *   Fyra knackningar = "Släppt nu" (släppt från disken; kökstiderna räknas därifrån)
+ *
+ * Svaret kommer som vibration, på full styrka, och låter olika så att det inte går att ta fel:
+ *   tre korta surr                = tre knackningar uppfattade, letar nu
+ *   två långa surr                = nytt läge hittat
+ *   ett mycket långt surr         = hittade inget (inne i båten, eller plats avstängd)
+ *   fyra korta surr och ett långt = Släppt är satt
  *
  * Så känns en knackning igen: accelerometern läses 200 gånger i sekunden, och en knackning är ett
  * plötsligt hopp mellan två avläsningar. Gång och arbete ger mjuka rörelser som inte hoppar så.
- * Tre hopp med 0,12–0,7 sekunder emellan, och tyst före och efter, räknas som tre knackningar.
+ * Tre eller fyra hopp med 0,12–0,7 sekunder emellan, och tyst före och efter, räknas.
  * Fler eller färre räknas inte, så skrammel i fickan utlöser sällan något.
  */
 final class Knock implements SensorEventListener {
@@ -39,13 +43,19 @@ final class Knock implements SensorEventListener {
     private static final long GAP_MAX_NS = 700_000_000L;
     private static final long SEEK_MS = 60_000L;
 
+    // Vibrationssvaren: tider i ms, varannan paus och varannan surr (börjar med paus).
+    private static final long[] BUZZ_LETAR = {0, 140, 110, 140, 110, 140};
+    private static final long[] BUZZ_HITTAT = {0, 450, 180, 450};
+    private static final long[] BUZZ_INGET = {0, 1100};
+    private static final long[] BUZZ_SLAPPT = {0, 140, 110, 140, 110, 140, 110, 140, 300, 800};
+
     private static final HashSet<String> users = new HashSet<>();
     private static Knock inst;
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     // Det sidan visar medan man provar.
-    static volatile int peaks, triples;
-    static volatile long lastPeakMs, lastTripleMs;
+    static volatile int peaks, triples, quads;
+    static volatile long lastPeakMs, lastTripleMs, lastQuadMs;
     static volatile float lastMax;
     static volatile String lastResult = "";
     private static volatile long muteUntil;               // egna vibrationer ska inte räknas som knackningar
@@ -108,6 +118,9 @@ final class Knock implements SensorEventListener {
             o.put("triples", triples);
             o.put("lastPeak", lastPeakMs);
             o.put("lastTriple", lastTripleMs);
+            o.put("quads", quads);
+            o.put("lastQuad", lastQuadMs);
+            o.put("skarpt", users.contains("logg"));
             o.put("lastMax", Math.round(lastMax * 10f) / 10.0);
             o.put("result", lastResult);
             return o.toString();
@@ -177,8 +190,13 @@ final class Knock implements SensorEventListener {
             }
             lastOverNs = t;
         } else if (n > 0 && quiet > GAP_MAX_NS) {
-            // Det har varit tyst en stund: var det precis tre, med lagom mellanrum?
-            if (n == 3 && seq[1] - seq[0] >= GAP_MIN_NS && seq[2] - seq[1] >= GAP_MIN_NS) triple();
+            // Det har varit tyst en stund: var det precis tre eller fyra, med lagom mellanrum?
+            if (n == 3 || n == 4) {
+                boolean ok = true;
+                for (int i = 1; i < n; i++) if (seq[i] - seq[i - 1] < GAP_MIN_NS) ok = false;
+                if (ok && n == 3) triple();
+                else if (ok) quad();
+            }
             n = 0;
         }
     }
@@ -190,36 +208,60 @@ final class Knock implements SensorEventListener {
         MAIN.post(new Runnable() {
             @Override
             public void run() {
-                buzz(app, new long[]{0, 70});
+                buzz(app, BUZZ_LETAR);
                 if (!Gps.allowed(app)) {
                     lastResult = "ingen";
                     MAIN.postDelayed(new Runnable() {
                         @Override
                         public void run() {
-                            buzz(app, new long[]{0, 600});
+                            buzz(app, BUZZ_INGET);
                         }
-                    }, 700);
+                    }, 1300);
                     return;
                 }
                 Gps.seek(app, SEEK_MS, new Runnable() {
                     @Override
                     public void run() {
                         lastResult = "hittat";
-                        buzz(app, new long[]{0, 70, 130, 70});
+                        buzz(app, BUZZ_HITTAT);
                         WebActivity.poke();
                     }
                 }, new Runnable() {
                     @Override
                     public void run() {
                         lastResult = "ingen";
-                        buzz(app, new long[]{0, 600});
+                        buzz(app, BUZZ_INGET);
                     }
                 });
             }
         });
     }
 
-    /** Vibrerar, och stänger öronen så länge det pågår plus en halv sekund. */
+    /** Fyra knackningar: Släppt nu. Skarpt bara medan loggningen går; när bara sidan lyssnar är det ett prov. */
+    private void quad() {
+        quads++;
+        final long now = System.currentTimeMillis();
+        lastQuadMs = now;
+        final boolean skarpt;
+        synchronized (Knock.class) {
+            skarpt = users.contains("logg");
+        }
+        MAIN.post(new Runnable() {
+            @Override
+            public void run() {
+                if (skarpt) {
+                    try {
+                        Store.pushEvent(app, new JSONObject().put("id", "slappt").put("t", now));
+                    } catch (Exception ignored) {
+                    }
+                }
+                buzz(app, BUZZ_SLAPPT);
+                WebActivity.poke();
+            }
+        });
+    }
+
+    /** Vibrerar på full styrka, och stänger öronen så länge det pågår plus en halv sekund. */
     static void buzz(Context c, long[] pattern) {
         long total = 0;
         for (long p : pattern) total += p;
@@ -228,7 +270,15 @@ final class Knock implements SensorEventListener {
             Vibrator v = (Vibrator) c.getSystemService(Context.VIBRATOR_SERVICE);
             if (v == null || !v.hasVibrator()) return;
             AudioAttributes aa = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build();
-            v.vibrate(VibrationEffect.createWaveform(pattern, -1), aa);
+            VibrationEffect fx;
+            if (v.hasAmplitudeControl()) {
+                int[] amp = new int[pattern.length];
+                for (int i = 0; i < amp.length; i++) amp[i] = i % 2 == 1 ? 255 : 0;
+                fx = VibrationEffect.createWaveform(pattern, amp, -1);
+            } else {
+                fx = VibrationEffect.createWaveform(pattern, -1);
+            }
+            v.vibrate(fx, aa);
         } catch (Exception ignored) {
         }
     }
