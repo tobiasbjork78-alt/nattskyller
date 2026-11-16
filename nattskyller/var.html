@@ -162,7 +162,7 @@
 // Farled Köpenhamn → Oslo, [lat, lon]. Breddgraden stiger hela vägen, så läget längs linjen bestäms av latituden.
 // Öresund–Skagerrak (56,05–58,21) går genom riktiga GPS-lägen från resan 14–15 nov 2026; resten är uppritat för hand.
 const R = [[55.7026,12.5932],[55.80,12.66],[55.90,12.63],[56.052,12.657],[56.137,12.514],[56.32,12.30],[57.441,11.458],[57.813,11.101],
-           [57.886,11.059],[58.211,10.935],[59.02,10.55],[59.30,10.57],[59.45,10.58],[59.67,10.62],[59.80,10.58],[59.87,10.66],[59.9052,10.7445]];
+           [57.886,11.059],[58.211,10.935],[59.02,10.55],[59.19,10.634],[59.30,10.597],[59.45,10.58],[59.67,10.62],[59.80,10.58],[59.87,10.634],[59.9052,10.7445]];
 const rad = d => d * Math.PI / 180;
 function dist(a, b){ // km
   const dl = rad(b[0]-a[0]), dn = rad(b[1]-a[1]);
@@ -254,12 +254,17 @@ function avgang(t){
 }
 /* Hur en resa brukar gå: timmar efter verklig avgång → breddgrad.
    Norrut ur resan 14–15 nov 2026: ut ur Köpenhamn cirka 16:50, 9–10 knop genom Öresund, 16–18 knop över Kattegatt,
-   förtöjd i Oslo 10:21. Söderut finns inget spår än: där räknar vi jämn fart över tidtabellens 17,5 timmar. */
+   förtöjd i Oslo 10:21.
+   Söderut ur resan 15–16 nov 2026: ut ur Oslo cirka 16:38, 15 knop genom Oslofjorden, 12–16 knop över Skagerrak
+   (där går båten upp till 25 km väster om linjen, men läget räknas efter breddgraden så det spelar ingen roll),
+   17–19 knop i Kattegatt. Spåret slutar 04:36 vid 57,07°N. Resten är antaget: samma restid som norrut, 17,5 timmar. */
 const PROFIL_N = [[0,55.7026],[2.05,56.0519],[2.55,56.1368],[7.83,57.4413],[9.32,57.8133],[10.92,58.2108],[17.52,59.9052]];
+const PROFIL_S = [[0,59.9052],[0.27,59.8742],[2.49,59.3223],[3.02,59.1876],[6.14,58.5924],[7.15,58.3660],[7.69,58.2277],[8.86,57.9216],
+                  [9.55,57.7366],[10.74,57.4036],[11.33,57.2404],[11.96,57.0680],[16.05,56.0519],[17.5,55.7026]];
 const _prof = {};
 function profil(dir){ // [[timmar in i resan, km från starthamnen]]
   const k = dir > 0 ? "n" : "s";
-  if (!_prof[k]) _prof[k] = dir > 0 ? PROFIL_N.map(p => [p[0], kmAtLat(p[1])]) : [[0, 0], [RESA_MS / 3600e3, TOTAL]];
+  if (!_prof[k]) _prof[k] = dir > 0 ? PROFIL_N.map(p => [p[0], kmAtLat(p[1])]) : PROFIL_S.map(p => [p[0], TOTAL - kmAtLat(p[1])]);
   return _prof[k];
 }
 function hVidKm(P, d){
