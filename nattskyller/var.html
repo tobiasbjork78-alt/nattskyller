@@ -139,10 +139,6 @@
       <li><b>Två långa surr</b> – nytt läge hittat</li>
       <li><b>Ett mycket långt surr</b> – hittade inget</li>
     </ul>
-    <p class="kh"><b>Fyra knackningar</b> – Släppt nu</p>
-    <ul class="buzz">
-      <li><b>Fyra korta surr och ett långt</b> – Släppt är satt</li>
-    </ul>
     <div class="krow"><span>Knackning</span><button type="button" id="kOn" class="ghost"></button></div>
     <div class="krow"><span>Känslighet</span>
       <span class="seg" id="kSeg" role="group" aria-label="Känslighet">
@@ -399,8 +395,6 @@ function renderKnack(){
     t = "Lyssnar. Prova: knacka med en knoge på telefonen.";
     if (k.peaks) t += " Uppfattade knackningar: " + k.peaks + ", senast " + hms(k.lastPeak) + " (styrka " + sv(k.lastMax || 0, 1) + ").";
     if (k.triples) t += " Tre i rad: " + k.triples + ", senast " + hm(k.lastTriple) + (k.result === "hittat" ? " – nytt läge." : k.result === "letar" ? " – letar …" : k.result === "ingen" ? " – hittade inget." : ".");
-    if (k.quads) t += " Fyra i rad: " + k.quads + ", senast " + hm(k.lastQuad) + ".";
-    if (k.skarpt === false) t += " Wifi-loggen går inte nu, så fyra knackningar är bara ett prov och sätter inte Släppt.";
   }
   $("kLive").textContent = t;
 }

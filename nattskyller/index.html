@@ -468,7 +468,7 @@ const store = (() => {
   };
 })();
 // Versionsstämpel: visas längst ner under Tider. Ändras vid varje publicering.
-const BUILD = "15 nov 14:05";
+const BUILD = "16 nov 03:55";
 (() => { const b = document.getElementById("buildstamp"); if (b) b.textContent = "· version " + BUILD; })();
 
 // ---------- Riktiga appen ----------
@@ -709,11 +709,11 @@ function taskRow(item){
     top.appendChild(head); li.appendChild(top);
     return li;
   }
-  // Golvraderna: efter "Släppt nu" räknas tiden ur wifi-loggen, och då behövs ingen knapp.
+  // Golvraderna: när Släppt är inskrivet räknas tiden ur wifi-loggen, och då behövs ingen knapp.
   // Före släppt finns knappen kvar för den som smygstartar golvet under diskpasset.
   const wf = item.room ? wifiGolv() : "";
   const auto = wf === "auto" && !r;
-  lab.appendChild(statLine(item.k, wf === "auto" ? "räknas ur wifi-loggen" : wf === "snart" ? "räknas ur loggen efter Släppt nu" : ""));
+  lab.appendChild(statLine(item.k, wf === "auto" ? "räknas ur wifi-loggen" : wf === "snart" ? "räknas ur loggen när Släppt är inskrivet" : ""));
   const ctl = el("div","tctl");
   if (auto){
     const tn = tonight(item.k);
@@ -822,7 +822,7 @@ function renderTimes(){
   });
   const fw = document.getElementById("freewrap"); fw.innerHTML = "";
   const fdays = Object.keys(free).sort().reverse();
-  if (!fdays.length) fw.appendChild(el("div","empty","Tryck \"Släppt nu\" på Idag-fliken när disken släpper dig."));
+  if (!fdays.length) fw.appendChild(el("div","empty","Skriv in på Idag-fliken när disken släppte dig."));
   else {
     const offs = fdays.map(d => free[d] - shiftTimeMs("17:00", d));
     const avg = offs.reduce((a,b) => a+b, 0) / offs.length;
@@ -1262,7 +1262,7 @@ if (!wifiSkip || typeof wifiSkip !== "object") wifiSkip = {};
 const wifiState = { busy: false, err: "" };
 function saveWifi(){ store.set(WFKEY, JSON.stringify(wifi)); }
 
-// Läget för golvraderna: "auto" = loggen räknar tiden nu, "snart" = den tar över vid Släppt nu, "" = bara för hand.
+// Läget för golvraderna: "auto" = loggen räknar tiden nu, "snart" = den tar över när Släppt är inskrivet, "" = bara för hand.
 // Finns ingen logg för natten (loggningen glömd eller avstängd) blir det "", så att knapparna finns kvar.
 function wifiGolv(){
   if (!wifiCfg.on || !gh) return "";
@@ -1385,7 +1385,7 @@ function renderWifi(){
   p.appendChild(document.createTextNode(txt));
   w.appendChild(p);
   if (wifiState.err && !wifiState.busy) w.appendChild(el("p","err", wifiState.err === "regler" ? "Hittar inte regler.json i arkivet." : ghErrText(wifiState.err)));
-  if (!free[isoDate]) w.appendChild(el("p", null, "Tryck \"Släppt nu\" på Idag-fliken. Tiden i köken räknas från det klockslaget."));
+  if (!free[isoDate]) w.appendChild(el("p", null, "Skriv in på Idag-fliken när disken släppte dig. Tiden i köken räknas från det klockslaget."));
   else if (auto.length){
     const by = {};
     auto.forEach(s => { by[s.t] = (by[s.t] || 0) + s.ms; });
@@ -1398,7 +1398,7 @@ function renderWifi(){
 
 // ---------- Släppt från disken (kort på Idag) ----------
 const freeEl = document.getElementById("free");
-let freeEdit = false;
+let freeEdit = false, freeDraft = "";
 function freeTexts(){
   const f = free[isoDate], t = Date.now(), end = shiftEndMs();
   return {
@@ -1406,34 +1406,49 @@ function freeTexts(){
     sub: "bara nattjobb · " + (t < end ? fmtDur(end - t) + " kvar till 04:30" : "passet slut 04:30")
   };
 }
+// Sparar klockslaget man skrivit in. Ett klockslag som inte har varit än tas inte emot.
+function setFree(val){
+  if (!val) return false;
+  const ms = shiftTimeMs(val);
+  if (ms > Date.now() + 60000){ showToast("Klockan har inte blivit " + val + " än"); return false; }
+  free[isoDate] = ms; saveFree(); freeDraft = ""; freeEdit = false; buzz(60);
+  renderAll(); renderFree();
+  return true;
+}
+function freeInput(value){
+  const inp = document.createElement("input");
+  inp.type = "time"; inp.className = "timein"; inp.id = "freein"; inp.value = value; inp.setAttribute("aria-label","Klockslag då du blev släppt");
+  inp.addEventListener("input", () => { freeDraft = inp.value; });
+  return inp;
+}
 function renderFree(){
   const f = free[isoDate];
   freeEl.innerHTML = "";
   freeEl.className = "free" + (f ? " on" : "");
-  if (freeEdit){
+  if (freeEdit && f){
     freeEl.appendChild(el("div","free-label","Släppt från disken kl"));
-    const row = el("div","free-row"), inp = document.createElement("input");
-    inp.type = "time"; inp.className = "timein"; inp.value = hhmm(f || Date.now()); inp.setAttribute("aria-label","Klockslag");
+    const row = el("div","free-row"), inp = freeInput(freeDraft || hhmm(f));
     const save = el("button","btn go sm","Spara"); save.type = "button";
-    save.addEventListener("click", () => {
-      if (inp.value){ free[isoDate] = shiftTimeMs(inp.value); saveFree(); }
-      freeEdit = false; renderAll(); renderFree();
-    });
+    save.addEventListener("click", () => { setFree(inp.value); });
     const del = el("button","btn ghost sm","Ta bort"); del.type = "button";
-    del.addEventListener("click", () => { delete free[isoDate]; saveFree(); freeEdit = false; renderAll(); renderFree(); });
+    del.addEventListener("click", () => { delete free[isoDate]; saveFree(); freeDraft = ""; freeEdit = false; renderAll(); renderFree(); });
     row.append(inp, save, del); freeEl.appendChild(row);
     return;
   }
   if (!f){
+    freeEdit = false;
     freeEl.appendChild(el("div","free-label","Diskpasset"));
-    const row = el("div","free-row");
+    const top = el("div","free-row");
     const dw = el("div","thumbs");
     dw.append(thumbEl("skagdisk", "SKAGERAK-DISKEN"), thumbEl("brdisk", "BR-DISKEN"));
-    row.appendChild(dw);
-    row.appendChild(el("div","free-txt","Tryck när disken släpper dig och natten är din."));
-    const b = el("button","btn go","Släppt nu"); b.type = "button";
-    b.addEventListener("click", () => { free[isoDate] = Date.now(); saveFree(); buzz(60); renderAll(); renderFree(); });
-    row.appendChild(b); freeEl.appendChild(row);
+    top.appendChild(dw);
+    top.appendChild(el("div","free-txt","Skriv in när disken släppte dig. Går bra i efterhand, kökstiderna räknas från det klockslaget."));
+    freeEl.appendChild(top);
+    const row = el("div","free-row"), inp = freeInput(freeDraft || hhmm(Date.now()));
+    inp.style.flex = "1";
+    const b = el("button","btn go","Spara"); b.type = "button";
+    b.addEventListener("click", () => { setFree(inp.value); });
+    row.append(el("div","free-sub","Släppt kl"), inp, b); freeEl.appendChild(row);
     return;
   }
   const tx = freeTexts();
@@ -1443,11 +1458,16 @@ function renderFree(){
   const sub = el("div","free-sub",tx.sub); sub.id = "freesub";
   left.append(big, sub);
   const e = el("button","btn ghost sm","Ändra"); e.type = "button";
-  e.addEventListener("click", () => { freeEdit = true; renderFree(); });
+  e.addEventListener("click", () => { freeEdit = true; freeDraft = ""; renderFree(); });
   row.append(left, e); freeEl.appendChild(row);
 }
 function tickFree(){
-  if (!free[isoDate] || freeEdit) return;
+  if (!free[isoDate]){
+    const i = document.getElementById("freein");
+    if (i && !freeDraft && document.activeElement !== i) i.value = hhmm(Date.now());
+    return;
+  }
+  if (freeEdit) return;
   const b = document.getElementById("freebig"), s = document.getElementById("freesub");
   if (!b || !s) return;
   const tx = freeTexts(); b.textContent = tx.big; s.textContent = tx.sub;
@@ -1643,7 +1663,7 @@ function applyNative(){
   if (!APP) return;
   const evs = appJson("takeEvents", []);
   if (!evs || !evs.length) return;
-  const runs = []; let slappt = false;
+  const runs = [];
   evs.forEach(ev => {
     if (ev.id === "run") runs.push({ k: ev.k, a: ev.a, t: ev.t });
     else if (ev.id === "pizza"){
@@ -1652,10 +1672,7 @@ function applyNative(){
       savePizza(); ringing = false; clearInterval(ringTimer); ringTimer = null; alarmEl.classList.remove("show"); renderPizza();
     }
     else if (ev.id === "tvatt" && wash){ wash.muted = true; wash.alerted = true; saveWash(); renderWash(); }
-    // Fyra knackningar på telefonen = Släppt nu. Gäller klockslaget då det knackades, och bara om Släppt inte redan är satt.
-    else if (ev.id === "slappt" && ev.t){ const d = shiftIso(ev.t); if (!free[d]){ free[d] = ev.t; saveFree(); slappt = true; } }
   });
-  if (slappt){ renderAll(); renderFree(); }
   if (runs.length){ noteState = ""; applyActions(runs); }
 }
 // Appen anropar den här när den kommer fram och när något har hänt i en avisering.

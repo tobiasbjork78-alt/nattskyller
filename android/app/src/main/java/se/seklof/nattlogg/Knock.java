@@ -21,18 +21,16 @@ import java.util.HashSet;
 /**
  * Knackningar på telefonen som knappar. Telefonen kan ligga kvar i fickan.
  *
- *   Tre knackningar  = leta efter ett nytt GPS-läge
- *   Fyra knackningar = "Släppt nu" (släppt från disken; kökstiderna räknas därifrån)
+ *   Tre knackningar = leta efter ett nytt GPS-läge
  *
  * Svaret kommer som vibration, på full styrka, och låter olika så att det inte går att ta fel:
  *   tre korta surr                = tre knackningar uppfattade, letar nu
  *   två långa surr                = nytt läge hittat
  *   ett mycket långt surr         = hittade inget (inne i båten, eller plats avstängd)
- *   fyra korta surr och ett långt = Släppt är satt
  *
  * Så känns en knackning igen: accelerometern läses 200 gånger i sekunden, och en knackning är ett
  * plötsligt hopp mellan två avläsningar. Gång och arbete ger mjuka rörelser som inte hoppar så.
- * Tre eller fyra hopp med 0,12–0,7 sekunder emellan, och tyst före och efter, räknas.
+ * Precis tre hopp med 0,12–0,7 sekunder emellan, och tyst före och efter, räknas.
  * Fler eller färre räknas inte, så skrammel i fickan utlöser sällan något.
  */
 final class Knock implements SensorEventListener {
@@ -47,15 +45,14 @@ final class Knock implements SensorEventListener {
     private static final long[] BUZZ_LETAR = {0, 140, 110, 140, 110, 140};
     private static final long[] BUZZ_HITTAT = {0, 450, 180, 450};
     private static final long[] BUZZ_INGET = {0, 1100};
-    private static final long[] BUZZ_SLAPPT = {0, 140, 110, 140, 110, 140, 110, 140, 300, 800};
 
     private static final HashSet<String> users = new HashSet<>();
     private static Knock inst;
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     // Det sidan visar medan man provar.
-    static volatile int peaks, triples, quads;
-    static volatile long lastPeakMs, lastTripleMs, lastQuadMs;
+    static volatile int peaks, triples;
+    static volatile long lastPeakMs, lastTripleMs;
     static volatile float lastMax;
     static volatile String lastResult = "";
     private static volatile long muteUntil;               // egna vibrationer ska inte räknas som knackningar
@@ -118,9 +115,6 @@ final class Knock implements SensorEventListener {
             o.put("triples", triples);
             o.put("lastPeak", lastPeakMs);
             o.put("lastTriple", lastTripleMs);
-            o.put("quads", quads);
-            o.put("lastQuad", lastQuadMs);
-            o.put("skarpt", users.contains("logg"));
             o.put("lastMax", Math.round(lastMax * 10f) / 10.0);
             o.put("result", lastResult);
             return o.toString();
@@ -190,12 +184,11 @@ final class Knock implements SensorEventListener {
             }
             lastOverNs = t;
         } else if (n > 0 && quiet > GAP_MAX_NS) {
-            // Det har varit tyst en stund: var det precis tre eller fyra, med lagom mellanrum?
-            if (n == 3 || n == 4) {
+            // Det har varit tyst en stund: var det precis tre, med lagom mellanrum?
+            if (n == 3) {
                 boolean ok = true;
                 for (int i = 1; i < n; i++) if (seq[i] - seq[i - 1] < GAP_MIN_NS) ok = false;
-                if (ok && n == 3) triple();
-                else if (ok) quad();
+                if (ok) triple();
             }
             n = 0;
         }
@@ -233,30 +226,6 @@ final class Knock implements SensorEventListener {
                         buzz(app, BUZZ_INGET);
                     }
                 });
-            }
-        });
-    }
-
-    /** Fyra knackningar: Släppt nu. Skarpt bara medan loggningen går; när bara sidan lyssnar är det ett prov. */
-    private void quad() {
-        quads++;
-        final long now = System.currentTimeMillis();
-        lastQuadMs = now;
-        final boolean skarpt;
-        synchronized (Knock.class) {
-            skarpt = users.contains("logg");
-        }
-        MAIN.post(new Runnable() {
-            @Override
-            public void run() {
-                if (skarpt) {
-                    try {
-                        Store.pushEvent(app, new JSONObject().put("id", "slappt").put("t", now));
-                    } catch (Exception ignored) {
-                    }
-                }
-                buzz(app, BUZZ_SLAPPT);
-                WebActivity.poke();
             }
         });
     }
