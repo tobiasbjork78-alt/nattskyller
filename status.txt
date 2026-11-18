@@ -1,0 +1,6 @@
+run=20 sha=99bacfdedfc4e8e37926f329b4747ac90d85e654 build=success job=success
+total 1052
+drwxr-xr-x 2 runner runner    4096 Nov 18 12:04 .
+drwxr-xr-x 3 runner runner    4096 Nov 18 12:04 ..
+-rw-r--r-- 1 runner runner 1061793 Nov 18 12:04 app-release.apk
+-rw-r--r-- 1 runner runner     408 Nov 18 12:04 output-metadata.json
