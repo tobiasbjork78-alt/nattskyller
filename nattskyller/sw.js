@@ -1,4 +1,4 @@
-const CACHE = "natskyll-v32";
+const CACHE = "natskyll-v33";
 // Egen cache för tryck på aviseringens knappar. Den ska överleva versionsbyten.
 const STATE = "natskyll-state";
 const ASSETS = [
